@@ -43,7 +43,7 @@ def train_epoch(
     total_epochs: int,
     wandb_run: Optional[Any] = None, # Optional W&B run object
     log_frequency: int = 100, # How often to log batch loss
-    gradient_clipping: Optional[float] = 1.0 # Max grad norm, None to disable
+    gradient_clipping: Optional[float] = 1.0 # Max grad norm
 ) -> float:
     """
     Trains the model for one epoch.
@@ -58,7 +58,8 @@ def train_epoch(
         total_epochs: Total number of epochs planned.
         wandb_run: Optional W&B run object for logging.
         log_frequency (int): Log batch loss every N batches.
-        gradient_clipping (Optional[float]): Max norm for gradient clipping.
+        gradient_clipping (Optional[float]): Max norm for gradient
+            clipping. None to disable.
 
     Returns:
         float: The average loss for the epoch.
@@ -96,7 +97,9 @@ def train_epoch(
 
         # Gradient Clipping (optional but recommended)
         if gradient_clipping is not None:
-            torch.nn.utils.clip_grad_norm_(model.parameters(), gradient_clipping)
+            torch.nn.utils.clip_grad_norm_(
+                model.parameters(), gradient_clipping
+            )
 
         # Optimizer step
         optimizer.step()
@@ -109,13 +112,18 @@ def train_epoch(
         data_iterator.set_postfix(loss=f"{batch_loss:.4f}")
 
         # Log batch loss to W&B (if enabled and interval met)
-        if wandb is not None and wandb_run is not None and batch_idx % log_frequency == 0:
+        if (wandb is not None and
+                wandb_run is not None and
+                batch_idx % log_frequency == 0):
             global_step = epoch_num * num_batches + batch_idx
             try:
+                current_lr = optimizer.param_groups[0]['lr']
+                # Continuous epoch (fractional)
+                cont_epoch = epoch_num + (batch_idx / num_batches)
                 wandb_run.log({
                     "batch_loss": batch_loss,
-                    "learning_rate": optimizer.param_groups[0]['lr'], # Log current LR
-                    "epoch": (epoch_num + (batch_idx / num_batches)), # Continuous epoch
+                    "learning_rate": current_lr,
+                    "epoch": cont_epoch,
                     "global_step": global_step
                 })
             except Exception as e:
@@ -143,7 +151,8 @@ def evaluate_model(
         device: The device to move data/model to.
 
     Returns:
-        Dict[str, float]: Dictionary containing evaluation metrics (e.g., 'val_loss', 'val_accuracy').
+        Dict[str, float]: Dictionary containing evaluation metrics
+                          (e.g., 'val_loss', 'val_accuracy').
     """
     model.eval() # Set model to evaluation mode
     total_loss = 0.0
@@ -157,7 +166,9 @@ def evaluate_model(
 
     logger.info("🧪 Starting evaluation...")
     with torch.no_grad(): # Disable gradient calculations for efficiency
-        data_iterator = tqdm(dataloader, desc="Evaluating", leave=False, unit="batch")
+        data_iterator = tqdm(
+            dataloader, desc="Evaluating", leave=False, unit="batch"
+        )
         for images, labels in data_iterator:
             images = images.to(device)
             labels = labels.to(device)
@@ -170,7 +181,8 @@ def evaluate_model(
             total_loss += loss.item()
 
             # Calculate accuracy
-            _, predicted = torch.max(outputs.data, 1) # Get the index of the max logit
+            # Get the index of the max logit
+            _, predicted = torch.max(outputs.data, 1)
             total_samples += labels.size(0)
             correct_predictions += (predicted == labels).sum().item()
 
@@ -178,8 +190,14 @@ def evaluate_model(
 
 
     avg_loss = total_loss / num_batches if num_batches > 0 else 0.0
-    accuracy = (correct_predictions / total_samples) * 100.0 if total_samples > 0 else 0.0
-    logger.info(f"🧪 Evaluation finished. Avg Loss: {avg_loss:.4f}, Accuracy: {accuracy:.2f}%")
+    accuracy = (
+        (correct_predictions / total_samples) * 100.0
+        if total_samples > 0 else 0.0
+    )
+    logger.info(
+        f"🧪 Evaluation finished. Avg Loss: {avg_loss:.4f}, "
+        f"Accuracy: {accuracy:.2f}%"
+    )
 
     return {"val_loss": avg_loss, "val_accuracy": accuracy}
 
@@ -197,7 +215,7 @@ def train_model(
     wandb_run: Optional[Any] = None, # Pass W&B run object
     lr_scheduler: Optional[Any] = None, # Optional LR scheduler
     val_dataloader: Optional[DataLoader] = None, # For validation
-) -> List[float]:
+) -> tuple[List[float], Dict[str, float]]:
     """
     Orchestrates the overall model training process.
 
@@ -208,24 +226,30 @@ def train_model(
         optimizer: Optimizer.
         device: Compute device.
         epochs: Number of epochs to train.
-        model_save_dir (str | Path): Base directory to save model checkpoints/final model.
-        run_name (str): Specific name for this run (used for save subdirectory).
+        model_save_dir (str | Path): Base directory to save model
+            checkpoints/final model.
+        run_name (str): Specific name for this run (used for save
+            subdirectory).
         wandb_run: Optional W&B run object.
         lr_scheduler: Optional learning rate scheduler.
+        val_dataloader: Optional DataLoader for validation data.
 
     Returns:
-        List[float]: List of average training losses per epoch.
+        tuple[List[float], Dict[str, float]]: List of average training
+            losses per epoch and final validation metrics.
     """
     logger.info(f"🚀 Starting Model Training: Run='{run_name}'")
     logger.info(f"   Epochs: {epochs}, Device: {device.type.upper()}")
     model.to(device) # Move model to the specified device
 
     epoch_losses = []
+    final_val_metrics = {} # Store last validation metrics
 
     # W&B Watch (optional - can log gradients, but adds overhead)
     if wandb is not None and wandb_run is not None:
         try:
-            wandb.watch(model, log="gradients", log_freq=500) # Example: Log gradients every 500 steps
+            # Example: Log gradients every 500 steps
+            wandb.watch(model, log="gradients", log_freq=500)
             logger.info("📊 W&B watching model parameters and gradients.")
         except Exception as e:
             logger.warning(f"⚠️ Failed to initiate wandb.watch: {e}")
@@ -242,7 +266,10 @@ def train_model(
             total_epochs=epochs,
             wandb_run=wandb_run,
         )
-        logger.info(f"✅ Epoch {epoch+1}/{epochs} | Avg Train Loss: {avg_train_loss:.4f}")
+        logger.info(
+            f"✅ Epoch {epoch+1}/{epochs} | "
+            f"Avg Train Loss: {avg_train_loss:.4f}"
+        )
         epoch_losses.append(avg_train_loss)
 
         # --- Validation Step ---
@@ -259,20 +286,24 @@ def train_model(
             for key, value in val_metrics.items():
                  log_str += f"{key}: {value:.4f} | "
             logger.info(log_str.strip())
+            final_val_metrics = val_metrics # Update final metrics
         # --- End Validation Step ---
 
         # Learning Rate Scheduler Step
         if lr_scheduler is not None:
-            if isinstance(lr_scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+            if isinstance(
+                lr_scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau
+            ):
                 # Need validation loss if using ReduceLROnPlateau
                 if "val_loss" in val_metrics:
                      lr_scheduler.step(val_metrics['val_loss'])
                 else:
-                     logger.warning("⚠️ ReduceLROnPlateau scheduler needs 'val_loss' but validation was not run.")
+                     logger.warning(
+                         "⚠️ ReduceLROnPlateau scheduler needs 'val_loss' "
+                         "but validation was not run."
+                     )
             else:
                 lr_scheduler.step()
-
-
 
         # --- Log Epoch Metrics to W&B ---
         if wandb is not None and wandb_run is not None:
@@ -281,7 +312,8 @@ def train_model(
                 wandb_log = {
                     "epoch": epoch + 1,
                     "avg_train_loss": avg_train_loss,
-                    **val_metrics # Add all validation metrics (e.g., val_loss, val_accuracy)
+                    # Add all validation metrics (e.g., val_loss, ...)
+                    **val_metrics
                     }
                 wandb_run.log(wandb_log)
             except Exception as e:
@@ -300,14 +332,17 @@ def train_model(
     except Exception as e:
         logger.error(f"❌ Failed to save final model: {e}", exc_info=True)
 
-    return epoch_losses, val_metrics
+    return epoch_losses, final_val_metrics
 
 
 # --- Test Block (Optional - More involved to set up full training here) ---
 if __name__ == "__main__":
-    logger.info("🧪 Running trainer.py script directly for testing (basic checks)...")
-    # Note: Running this directly requires setting up dummy model, data, optimizer etc.
-    # It's generally better to test this via the main training script.
+    logger.info(
+        "🧪 Running trainer.py script directly for testing (basic checks)..."
+    )
+    # Note: Running this directly requires setting up dummy model, data,
+    # optimizer etc. It's generally better to test this via the main
+    # training script.
 
     # Example basic check: Can the functions be called?
     logger.info("Checking function signatures...")
@@ -315,7 +350,10 @@ if __name__ == "__main__":
         # Example dummy components
         _device = torch.device("cpu")
         _model = nn.Linear(10, 2) # Dummy model
-        _data = [(torch.randn(10), torch.randint(0, 2, (1,)).squeeze()) for _ in range(5)]
+        _data = [
+            (torch.randn(10), torch.randint(0, 2, (1,)).squeeze())
+            for _ in range(5)
+        ]
         _loader = DataLoader(_data, batch_size=2)
         _crit = nn.CrossEntropyLoss()
         _optim = optim.Adam(_model.parameters(), lr=0.01)
@@ -324,9 +362,17 @@ if __name__ == "__main__":
         avg_loss = train_epoch(_model, _loader, _crit, _optim, _device, 0, 1)
         logger.info(f"Dummy train_epoch avg loss: {avg_loss:.4f}")
 
+        logger.info("Testing evaluate_model...")
+        eval_metrics = evaluate_model(_model, _loader, _crit, _device)
+        logger.info(f"Dummy evaluate_model metrics: {eval_metrics}")
+
         logger.info("Testing train_model...")
-        losses = train_model(_model, _loader, _crit, _optim, _device, 2, "./temp_test_model", "test_run")
+        losses, metrics = train_model(
+            _model, _loader, _crit, _optim, _device, 2,
+            "./temp_test_model", "test_run", val_dataloader=_loader
+        )
         logger.info(f"Dummy train_model epoch losses: {losses}")
+        logger.info(f"Dummy train_model final metrics: {metrics}")
         # Clean up dummy save directory
         if os.path.exists("./temp_test_model"):
              import shutil
