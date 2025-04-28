@@ -141,7 +141,7 @@ def main():
     if wandb is not None and not args.no_wandb:
         try:
             if args.wandb_run_name is None:
-                run_name = (f"Phase{args.phase}_E{args.epochs}_"
+                run_name = (f"PyTorch_Phase{args.phase}_E{args.epochs}_"
                             f"LR{args.lr}_B{args.batch_size}_ViT")
             else:
                 run_name = args.wandb_run_name
