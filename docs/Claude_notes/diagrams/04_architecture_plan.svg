@@ -1,0 +1,252 @@
+<svg viewBox="0 0 900 700" xmlns="http://www.w3.org/2000/svg">
+  <!-- Definitions for gradients and markers -->
+  <defs>
+    <linearGradient id="inputGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8ED1FC" />
+      <stop offset="100%" stop-color="#0693E3" />
+    </linearGradient>
+    <linearGradient id="patchGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ABE9CD" />
+      <stop offset="100%" stop-color="#3F9E75" />
+    </linearGradient>
+    <linearGradient id="transformerGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFF3AC" />
+      <stop offset="100%" stop-color="#F6BF26" />
+    </linearGradient>
+    <linearGradient id="outputGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFB199" />
+      <stop offset="100%" stop-color="#FF5252" />
+    </linearGradient>
+    <linearGradient id="phaseGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FCB8DA" />
+      <stop offset="100%" stop-color="#E145A3" />
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="2" result="blur" />
+      <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 12 -7" result="glow" />
+      <feBlend in="SourceGraphic" in2="glow" mode="normal" />
+    </filter>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5"
+      markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#555" />
+    </marker>
+  </defs>
+  
+  <!-- Title -->
+  <text x="450" y="40" font-family="Arial" font-size="28" text-anchor="middle" font-weight="bold" fill="#333">
+    🧠 Vision Transformer for MNIST: Tiny Architecture ✨
+  </text>
+  
+  <!-- MNIST Example -->
+  <rect x="50" y="80" width="110" height="110" rx="5" fill="url(#inputGradient)" filter="url(#glow)" />
+  
+  <!-- Draw a mock MNIST digit (number 5) -->
+  <path d="M80,100 C100,95 120,95 120,110 C120,125 100,130 80,125 C80,125 80,160 80,160 C100,165 120,160 130,145" 
+        stroke="white" stroke-width="8" fill="none" />
+  
+  <text x="105" y="205" font-family="Arial" font-size="16" text-anchor="middle" font-weight="bold" fill="#333">
+    MNIST Input
+  </text>
+  <text x="105" y="225" font-family="Arial" font-size="14" text-anchor="middle" fill="#333">
+    28×28 pixels
+  </text>
+  
+  <!-- Patches Grid -->
+  <rect x="220" y="80" width="110" height="110" rx="5" fill="url(#patchGradient)" filter="url(#glow)" />
+  
+  <!-- Draw patch grid -->
+  <line x1="220" y1="107" x2="330" y2="107" stroke="white" stroke-width="1" />
+  <line x1="220" y1="135" x2="330" y2="135" stroke="white" stroke-width="1" />
+  <line x1="220" y1="163" x2="330" y2="163" stroke="white" stroke-width="1" />
+  
+  <line x1="247" y1="80" x2="247" y2="190" stroke="white" stroke-width="1" />
+  <line x1="275" y1="80" x2="275" y2="190" stroke="white" stroke-width="1" />
+  <line x1="303" y1="80" x2="303" y2="190" stroke="white" stroke-width="1" />
+  
+  <text x="275" y="205" font-family="Arial" font-size="16" text-anchor="middle" font-weight="bold" fill="#333">
+    Patch Splitting
+  </text>
+  <text x="275" y="225" font-family="Arial" font-size="14" text-anchor="middle" fill="#333">
+    7×7 patches (16 total)
+  </text>
+  
+  <!-- Patch + Position Embedding -->
+  <rect x="390" y="80" width="160" height="110" rx="5" fill="url(#patchGradient)" filter="url(#glow)" />
+  
+  <!-- Token visualization -->
+  <rect x="400" y="95" width="30" height="30" fill="#F8F32B" stroke="white" stroke-width="1" />
+  <text x="415" y="115" font-family="Arial" font-size="12" fill="#333" text-anchor="middle" font-weight="bold">CLS</text>
+  
+  <rect x="435" y="95" width="30" height="30" fill="white" stroke="white" stroke-width="1" opacity="0.6" />
+  <text x="450" y="115" font-family="Arial" font-size="12" fill="#333" text-anchor="middle">P₁</text>
+  
+  <rect x="470" y="95" width="30" height="30" fill="white" stroke="white" stroke-width="1" opacity="0.6" />
+  <text x="485" y="115" font-family="Arial" font-size="12" fill="#333" text-anchor="middle">P₂</text>
+  
+  <rect x="505" y="95" width="30" height="30" fill="white" stroke="white" stroke-width="1" opacity="0.6" />
+  <text x="520" y="115" font-family="Arial" font-size="12" fill="#333" text-anchor="middle">...</text>
+  
+  <rect x="400" y="140" width="140" height="30" fill="white" stroke="white" stroke-width="1" opacity="0.6" />
+  <text x="470" y="160" font-family="Arial" font-size="12" fill="#333" text-anchor="middle">Position Embeddings</text>
+  
+  <text x="470" y="205" font-family="Arial" font-size="16" text-anchor="middle" font-weight="bold" fill="#333">
+    Patch + Position Embedding
+  </text>
+  <text x="470" y="225" font-family="Arial" font-size="14" text-anchor="middle" fill="#333">
+    64-dimensional
+  </text>
+  
+  <!-- Transformer Blocks -->
+  <rect x="600" y="80" width="110" height="160" rx="5" fill="url(#transformerGradient)" filter="url(#glow)" />
+  
+  <!-- Transformer Block 1 -->
+  <rect x="610" y="90" width="90" height="30" rx="5" fill="white" opacity="0.8" />
+  <text x="655" y="110" font-family="Arial" font-size="12" fill="#333" text-anchor="middle">Multi-Head Attn</text>
+  
+  <!-- Transformer Block 2 -->
+  <rect x="610" y="130" width="90" height="30" rx="5" fill="white" opacity="0.8" />
+  <text x="655" y="150" font-family="Arial" font-size="12" fill="#333" text-anchor="middle">Multi-Head Attn</text>
+  
+  <!-- Transformer Block 3 -->
+  <rect x="610" y="170" width="90" height="30" rx="5" fill="white" opacity="0.8" />
+  <text x="655" y="190" font-family="Arial" font-size="12" fill="#333" text-anchor="middle">Multi-Head Attn</text>
+  
+  <!-- Transformer Block 4 -->
+  <rect x="610" y="210" width="90" height="45" rx="5" fill="white" opacity="0.8" />
+  <text x="655" y="230" font-family="Arial" font-size="12" fill="#333" text-anchor="middle">Multi-Head Attn</text>
+  
+  <text x="655" y="270" font-family="Arial" font-size="16" text-anchor="middle" font-weight="bold" fill="#333">
+    Transformer Encoder
+  </text>
+  <text x="655" y="290" font-family="Arial" font-size="14" text-anchor="middle" fill="#333">
+    4 layers, 4 heads
+  </text>
+  
+  <!-- MLP Head -->
+  <rect x="760" y="80" width="110" height="110" rx="5" fill="url(#outputGradient)" filter="url(#glow)" />
+  
+  <!-- Output visualization -->
+  <rect x="780" y="95" width="70" height="20" rx="5" fill="white" opacity="0.8" />
+  <text x="815" y="110" font-family="Arial" font-size="12" fill="#333" text-anchor="middle">Class 0</text>
+  
+  <rect x="780" y="120" width="70" height="20" rx="5" fill="white" opacity="0.8" />
+  <text x="815" y="135" font-family="Arial" font-size="12" fill="#333" text-anchor="middle">Class 1</text>
+  
+  <rect x="780" y="145" width="70" height="20" rx="5" fill="#F8F32B" opacity="0.8" />
+  <text x="815" y="160" font-family="Arial" font-size="12" fill="#333" text-anchor="middle" font-weight="bold">Class 2</text>
+  
+  <rect x="780" y="170" width="70" height="20" rx="5" fill="white" opacity="0.8" />
+  <text x="815" y="185" font-family="Arial" font-size="12" fill="#333" text-anchor="middle">...</text>
+  
+  <text x="815" y="220" font-family="Arial" font-size="16" text-anchor="middle" font-weight="bold" fill="#333">
+    MLP Classifier
+  </text>
+  <text x="815" y="240" font-family="Arial" font-size="14" text-anchor="middle" fill="#333">
+    10 classes (0-9)
+  </text>
+  
+  <!-- Connection Arrows -->
+  <line x1="160" y1="135" x2="220" y2="135" stroke="#555" stroke-width="3" marker-end="url(#arrow)" />
+  <line x1="330" y1="135" x2="390" y2="135" stroke="#555" stroke-width="3" marker-end="url(#arrow)" />
+  <line x1="550" y1="135" x2="600" y2="135" stroke="#555" stroke-width="3" marker-end="url(#arrow)" />
+  <line x1="710" y1="135" x2="760" y2="135" stroke="#555" stroke-width="3" marker-end="url(#arrow)" />
+  
+  <!-- Phase Boxes -->
+  <!-- Phase 1 -->
+  <rect x="50" y="350" width="240" height="180" rx="10" fill="url(#phaseGradient)" filter="url(#glow)" opacity="0.9" />
+  <text x="170" y="380" font-family="Arial" font-size="20" text-anchor="middle" font-weight="bold" fill="white">
+    Phase 1: Single Digit
+  </text>
+  
+  <!-- Draw a mock MNIST grid -->
+  <rect x="100" y="400" width="140" height="80" rx="5" fill="white" />
+  <g transform="translate(115, 380) scale(0.5)">
+    <path d="M80,100 C100,95 120,95 120,110 C120,125 100,130 80,125 C80,125 80,160 80,160 C100,165 120,160 130,145" 
+          stroke="black" stroke-width="8" fill="none" />
+  </g>
+  
+  <text x="170" y="500" font-family="Arial" font-size="14" text-anchor="middle" fill="white">
+    28×28 Single Digit
+  </text>
+  <text x="170" y="520" font-family="Arial" font-size="14" text-anchor="middle" fill="white">
+    Accuracy Target: 98%+
+  </text>
+  
+  <!-- Phase 2 -->
+  <rect x="330" y="350" width="240" height="180" rx="10" fill="url(#phaseGradient)" filter="url(#glow)" opacity="0.9" />
+  <text x="450" y="380" font-family="Arial" font-size="20" text-anchor="middle" font-weight="bold" fill="white">
+    Phase 2: Multi-Digit
+  </text>
+  
+  <!-- Draw a mock 2x2 MNIST grid -->
+  <rect x="380" y="400" width="140" height="80" rx="5" fill="white" />
+  <line x1="380" y1="440" x2="520" y2="440" stroke="black" stroke-width="1" />
+  <line x1="450" y1="400" x2="450" y2="480" stroke="black" stroke-width="1" />
+  
+  <g transform="translate(385, 380) scale(0.3)">
+    <path d="M80,100 C100,95 120,95 120,110 C120,125 100,130 80,125 C80,125 80,160 80,160 C100,165 120,160 130,145" 
+          stroke="black" stroke-width="8" fill="none" />
+  </g>
+  
+  <g transform="translate(465, 380) scale(0.3)">
+    <path d="M70,100 C90,120 110,140 110,160 M70,100 C90,80 110,100 70,160" 
+          stroke="black" stroke-width="8" fill="none" />
+  </g>
+  
+  <g transform="translate(385, 420) scale(0.3)">
+    <path d="M70,100 C110,100 110,130 70,130 C70,130 70,160 110,160" 
+          stroke="black" stroke-width="8" fill="none" />
+  </g>
+  
+  <g transform="translate(465, 420) scale(0.3)">
+    <path d="M100,100 C100,100 100,160 100,160 M70,100 C130,100 130,100 130,100" 
+          stroke="black" stroke-width="8" fill="none" />
+  </g>
+  
+  <text x="450" y="500" font-family="Arial" font-size="14" text-anchor="middle" fill="white">
+    56×56 (2×2 Grid)
+  </text>
+  <text x="450" y="520" font-family="Arial" font-size="14" text-anchor="middle" fill="white">
+    4 Digit Recognition
+  </text>
+  
+  <!-- Phase 3 -->
+  <rect x="610" y="350" width="240" height="180" rx="10" fill="url(#phaseGradient)" filter="url(#glow)" opacity="0.9" />
+  <text x="730" y="380" font-family="Arial" font-size="20" text-anchor="middle" font-weight="bold" fill="white">
+    Phase 3: Dynamic Layout
+  </text>
+  
+  <!-- Draw a mock variable layout -->
+  <rect x="660" y="400" width="140" height="80" rx="5" fill="white" />
+  
+  <g transform="translate(685, 420) scale(0.3)">
+    <path d="M80,100 C100,95 120,95 120,110 C120,125 100,130 80,125 C80,125 80,160 80,160 C100,165 120,160 130,145" 
+          stroke="black" stroke-width="8" fill="none" />
+  </g>
+  
+  <g transform="translate(725, 405) scale(0.3)">
+    <path d="M70,100 C90,120 110,140 110,160 M70,100 C90,80 110,100 70,160" 
+          stroke="black" stroke-width="8" fill="none" />
+  </g>
+  
+  <g transform="translate(765, 425) scale(0.3)">
+    <path d="M70,100 C110,100 110,130 70,130 C70,130 70,160 110,160" 
+          stroke="black" stroke-width="8" fill="none" />
+  </g>
+  
+  <text x="730" y="500" font-family="Arial" font-size="14" text-anchor="middle" fill="white">
+    Variable Digit Layout
+  </text>
+  <text x="730" y="520" font-family="Arial" font-size="14" text-anchor="middle" fill="white">
+    Object Detection + Recognition
+  </text>
+  
+
+
+  
+  <!-- Decorative elements -->
+  <text x="25" y="135" font-size="24">✨</text>
+  <text x="875" y="135" font-size="24">✨</text>
+  <text x="25" y="440" font-size="24">✨</text>
+  <text x="875" y="440" font-size="24">✨</text>
+</svg>

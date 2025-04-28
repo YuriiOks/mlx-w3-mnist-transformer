@@ -1,0 +1,225 @@
+<svg viewBox="0 0 1000 900" xmlns="http://www.w3.org/2000/svg">
+  <!-- Definitions for gradients and markers -->
+  <defs>
+    <linearGradient id="imageGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8ED1FC" />
+      <stop offset="100%" stop-color="#0693E3" />
+    </linearGradient>
+    <linearGradient id="patchGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ABE9CD" />
+      <stop offset="100%" stop-color="#3F9E75" />
+    </linearGradient>
+    <linearGradient id="embedGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFF3AC" />
+      <stop offset="100%" stop-color="#F6BF26" />
+    </linearGradient>
+    <linearGradient id="transformerGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FCB8DA" />
+      <stop offset="100%" stop-color="#E145A3" />
+    </linearGradient>
+    <linearGradient id="outputGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFB199" />
+      <stop offset="100%" stop-color="#FF5252" />
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3" result="blur" />
+      <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -7" result="glow" />
+      <feBlend in="SourceGraphic" in2="glow" mode="normal" />
+    </filter>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5"
+      markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#555" />
+    </marker>
+  </defs>
+  
+  <!-- Title -->
+  <text x="450" y="40" font-family="Arial" font-size="28" text-anchor="middle" font-weight="bold" fill="#333">
+    🖼️ Vision Transformer (ViT) Architecture ✨
+  </text>
+  
+  <!-- Input Image Section -->
+  <rect x="50" y="80" width="150" height="100" rx="15" fill="url(#imageGradient)" filter="url(#glow)" />
+  <text x="125" y="110" font-family="Arial" font-size="16" fill="white" text-anchor="middle" font-weight="bold">
+    🌄 Input Image
+  </text>
+  <text x="125" y="135" font-family="Arial" font-size="14" fill="white" text-anchor="middle">
+    (224×224×3)
+  </text>
+  <text x="125" y="160" font-family="Arial" font-size="12" fill="white" text-anchor="middle">
+    RGB Image
+  </text>
+  
+  <!-- Image to Patches -->
+  <rect x="250" y="80" width="150" height="100" rx="15" fill="url(#patchGradient)" filter="url(#glow)" />
+  <text x="325" y="110" font-family="Arial" font-size="16" fill="white" text-anchor="middle" font-weight="bold">
+    ✂️ Image Patches
+  </text>
+  <text x="325" y="135" font-family="Arial" font-size="14" fill="white" text-anchor="middle">
+    16×16 patches
+  </text>
+  <text x="325" y="160" font-family="Arial" font-size="12" fill="white" text-anchor="middle">
+    (14×14=196 patches)
+  </text>
+  
+  <!-- Patch Embedding -->
+  <rect x="450" y="80" width="150" height="100" rx="15" fill="url(#embedGradient)" filter="url(#glow)" />
+  <text x="525" y="110" font-family="Arial" font-size="16" fill="white" text-anchor="middle" font-weight="bold">
+    📊 Patch Embedding
+  </text>
+  <text x="525" y="135" font-family="Arial" font-size="14" fill="white" text-anchor="middle">
+    Linear Projection
+  </text>
+  <text x="525" y="160" font-family="Arial" font-size="12" fill="white" text-anchor="middle">
+    (768 dimensions)
+  </text>
+  
+  <!-- Position Embedding + Class Token -->
+  <rect x="650" y="80" width="200" height="100" rx="15" fill="url(#embedGradient)" filter="url(#glow)" />
+  <text x="750" y="105" font-family="Arial" font-size="16" fill="white" text-anchor="middle" font-weight="bold">
+    📍 Position Embedding
+  </text>
+  <text x="750" y="127" font-family="Arial" font-size="14" fill="white" text-anchor="middle">
+    + 🏷️ Class Token [CLS]
+  </text>
+  <text x="750" y="150" font-family="Arial" font-size="12" fill="white" text-anchor="middle">
+    197 tokens × 768 dim
+  </text>
+  <text x="750" y="170" font-family="Arial" font-size="12" fill="white" text-anchor="middle">
+    ([CLS] + 196 patches)
+  </text>
+  
+  <!-- Transformer Encoder -->
+  <rect x="250" y="230" width="400" height="260" rx="15" fill="url(#transformerGradient)" filter="url(#glow)" />
+  <text x="450" y="260" font-family="Arial" font-size="20" fill="white" text-anchor="middle" font-weight="bold">
+    🔄 Transformer Encoder
+  </text>
+  
+  <!-- Transformer Internal Components -->
+  <rect x="280" y="290" width="160" height="70" rx="10" fill="white" opacity="0.9" />
+  <text x="360" y="315" font-family="Arial" font-size="14" fill="#333" text-anchor="middle" font-weight="bold">
+    👁️ Multi-Head Attention
+  </text>
+  <text x="360" y="335" font-family="Arial" font-size="12" fill="#333" text-anchor="middle">
+    12 heads × 64 dim
+  </text>
+  <text x="360" y="350" font-family="Arial" font-size="12" fill="#333" text-anchor="middle">
+    Every patch sees all patches
+  </text>
+  
+  <rect x="460" y="290" width="160" height="70" rx="10" fill="white" opacity="0.9" />
+  <text x="540" y="315" font-family="Arial" font-size="14" fill="#333" text-anchor="middle" font-weight="bold">
+    🧠 MLP Block
+  </text>
+  <text x="540" y="335" font-family="Arial" font-size="12" fill="#333" text-anchor="middle">
+    [768 → 3072 → 768]
+  </text>
+  <text x="540" y="350" font-family="Arial" font-size="12" fill="#333" text-anchor="middle">
+    with GELU activation
+  </text>
+  
+  <rect x="280" y="380" width="340" height="70" rx="10" fill="white" opacity="0.9" />
+  <text x="450" y="405" font-family="Arial" font-size="14" fill="#333" text-anchor="middle" font-weight="bold">
+    📏 Layer Norm & Residual Connections
+  </text>
+  <text x="450" y="425" font-family="Arial" font-size="12" fill="#333" text-anchor="middle">
+    LayerNorm(x + Sublayer(x))
+  </text>
+  <text x="450" y="440" font-family="Arial" font-size="12" fill="#333" text-anchor="middle">
+    Repeated for L layers (typically 12)
+  </text>
+  
+  <!-- MLP Head for Classification -->
+  <rect x="350" y="530" width="200" height="100" rx="15" fill="url(#outputGradient)" filter="url(#glow)" />
+  <text x="450" y="560" font-family="Arial" font-size="16" fill="white" text-anchor="middle" font-weight="bold">
+    🎯 MLP Head
+  </text>
+  <text x="450" y="585" font-family="Arial" font-size="14" fill="white" text-anchor="middle">
+    [CLS] token → Classification
+  </text>
+  <text x="450" y="605" font-family="Arial" font-size="12" fill="white" text-anchor="middle">
+    768 → 1000 classes
+  </text>
+  
+  <!-- Output -->
+  <rect x="350" y="670" width="200" height="50" rx="15" fill="url(#outputGradient)" filter="url(#glow)" />
+  <text x="450" y="700" font-family="Arial" font-size="16" fill="white" text-anchor="middle" font-weight="bold">
+    🏆 Class Prediction
+  </text>
+  
+  <!-- Connections -->
+  <line x1="200" y1="130" x2="250" y2="130" stroke="#555" stroke-width="3" marker-end="url(#arrow)" />
+  <line x1="400" y1="130" x2="450" y2="130" stroke="#555" stroke-width="3" marker-end="url(#arrow)" />
+  <line x1="600" y1="130" x2="650" y2="130" stroke="#555" stroke-width="3" marker-end="url(#arrow)" />
+  <line x1="750" y1="180" x2="450" y2="230" stroke="#555" stroke-width="3" marker-end="url(#arrow)" />
+  <line x1="450" y1="490" x2="450" y2="530" stroke="#555" stroke-width="3" marker-end="url(#arrow)" />
+  <line x1="450" y1="630" x2="450" y2="670" stroke="#555" stroke-width="3" marker-end="url(#arrow)" />
+  
+  <!-- Image Grid Representation -->
+  <g transform="translate(80, 80)">
+    <rect x="0" y="0" width="90" height="90" fill="none" stroke="#fff" stroke-width="2" />
+    <line x1="30" y1="0" x2="30" y2="90" stroke="#fff" stroke-width="1" />
+    <line x1="60" y1="0" x2="60" y2="90" stroke="#fff" stroke-width="1" />
+    <line x1="0" y1="30" x2="90" y2="30" stroke="#fff" stroke-width="1" />
+    <line x1="0" y1="60" x2="90" y2="60" stroke="#fff" stroke-width="1" />
+  </g>
+  
+  <!-- Patch Grid Representation -->
+  <g transform="translate(280, 80)">
+    <rect x="0" y="0" width="90" height="90" fill="none" stroke="#fff" stroke-width="2" />
+    <line x1="22.5" y1="0" x2="22.5" y2="90" stroke="#fff" stroke-width="1" opacity="0.6" />
+    <line x1="45" y1="0" x2="45" y2="90" stroke="#fff" stroke-width="1" opacity="0.6" />
+    <line x1="67.5" y1="0" x2="67.5" y2="90" stroke="#fff" stroke-width="1" opacity="0.6" />
+    <line x1="0" y1="22.5" x2="90" y2="22.5" stroke="#fff" stroke-width="1" opacity="0.6" />
+    <line x1="0" y1="45" x2="90" y2="45" stroke="#fff" stroke-width="1" opacity="0.6" />
+    <line x1="0" y1="67.5" x2="90" y2="67.5" stroke="#fff" stroke-width="1" opacity="0.6" />
+  </g>
+  
+  <!-- Sequence Representation -->
+  <g transform="translate(670, 195)">
+    <rect x="0" y="0" width="30" height="30" fill="#F8F32B" stroke="#fff" stroke-width="1.5" />
+    <text x="15" y="20" font-family="Arial" font-size="12" text-anchor="middle" fill="#333" font-weight="bold">CLS</text>
+    
+    <rect x="35" y="0" width="30" height="30" fill="#C8E7FF" stroke="#fff" stroke-width="1" />
+    <text x="50" y="20" font-family="Arial" font-size="12" text-anchor="middle" fill="#333">1</text>
+    
+    <rect x="70" y="0" width="30" height="30" fill="#C8E7FF" stroke="#fff" stroke-width="1" />
+    <text x="85" y="20" font-family="Arial" font-size="12" text-anchor="middle" fill="#333">2</text>
+    
+    <rect x="105" y="0" width="30" height="30" fill="#C8E7FF" stroke="#fff" stroke-width="1" />
+    <text x="120" y="20" font-family="Arial" font-size="12" text-anchor="middle" fill="#333">3</text>
+    
+    <rect x="140" y="0" width="30" height="30" fill="#C8E7FF" stroke="#fff" stroke-width="1" />
+    <text x="155" y="20" font-family="Arial" font-size="12" text-anchor="middle" fill="#333">...</text>
+  </g>
+  
+  <!-- Decorative elements -->
+  <text x="20" y="105" font-size="24">✨</text>
+  <text x="880" y="105" font-size="24">✨</text>
+  <text x="20" y="430" font-size="24">✨</text>
+  <text x="880" y="430" font-size="24">✨</text>
+  <text x="20" y="670" font-size="24">✨</text>
+  <text x="880" y="670" font-size="24">✨</text>
+  
+  <!-- Math Formula -->
+  <rect x="50" y="580" width="250" height="85" rx="10" fill="#F5F5F5" stroke="#333" stroke-width="2" />
+  <text x="175" y="605" font-family="Arial" font-size="16" text-anchor="middle" font-weight="bold">
+    🧮 Patches x_p
+  </text>
+  <text x="175" y="630" font-family="Arial" font-size="14" text-anchor="middle">
+    x_p ∈ ℝ^(N×(P²·C))
+  </text>
+  <text x="175" y="650" font-family="Arial" font-size="14" text-anchor="middle">
+    N = HW/P²
+  </text>
+  
+  <rect x="600" y="580" width="250" height="85" rx="10" fill="#F5F5F5" stroke="#333" stroke-width="2" />
+  <text x="725" y="605" font-family="Arial" font-size="16" text-anchor="middle" font-weight="bold">
+    🔍 Self-Attention
+  </text>
+  <text x="725" y="630" font-family="Arial" font-size="14" text-anchor="middle">
+    Attn(Q,K,V) = softmax(QK^T/√d)V
+  </text>
+  <text x="725" y="650" font-family="Arial" font-size="14" text-anchor="middle">
+    Q,K,V ∈ ℝ^(N×d)
+  </text>
+</svg>

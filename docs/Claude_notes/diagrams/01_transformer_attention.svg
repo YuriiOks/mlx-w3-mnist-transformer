@@ -1,0 +1,187 @@
+<svg viewBox="0 0 800 600" xmlns="http://www.w3.org/2000/svg">
+  <!-- Definitions for gradients and markers -->
+  <defs>
+    <radialGradient id="inputGradient" cx="50%" cy="50%" r="75%" fx="50%" fy="50%">
+      <stop offset="0%" stop-color="#4FC3F7" />
+      <stop offset="100%" stop-color="#1565C0" />
+    </radialGradient>
+    <radialGradient id="qkvGradient" cx="50%" cy="50%" r="75%" fx="50%" fy="50%">
+      <stop offset="0%" stop-color="#66BB6A" />
+      <stop offset="100%" stop-color="#1B5E20" />
+    </radialGradient>
+    <radialGradient id="attentionGradient" cx="50%" cy="50%" r="75%" fx="50%" fy="50%">
+      <stop offset="0%" stop-color="#FFA726" />
+      <stop offset="100%" stop-color="#E65100" />
+    </radialGradient>
+    <radialGradient id="outputGradient" cx="50%" cy="50%" r="75%" fx="50%" fy="50%">
+      <stop offset="0%" stop-color="#BA68C8" />
+      <stop offset="100%" stop-color="#4A148C" />
+    </radialGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="4" result="blur" />
+      <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -7" result="glow" />
+      <feBlend in="SourceGraphic" in2="glow" mode="normal" />
+    </filter>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5"
+      markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#444" />
+    </marker>
+  </defs>
+  
+  <!-- Title -->
+  <text x="400" y="40" font-family="Arial" font-size="28" text-anchor="middle" font-weight="bold" fill="#333">
+    ✨ Transformer Attention Mechanism ✨
+  </text>
+  
+  <!-- Input Section -->
+  <rect x="60" y="80" width="160" height="60" rx="15" fill="url(#inputGradient)" filter="url(#glow)" />
+  <text x="140" y="110" font-family="Arial" font-size="16" fill="white" text-anchor="middle" font-weight="bold">
+    🔤 Input Embeddings
+  </text>
+  
+  <!-- Query, Key, Value Projections -->
+  <rect x="60" y="190" width="160" height="60" rx="15" fill="url(#qkvGradient)" filter="url(#glow)" />
+  <text x="140" y="225" font-family="Arial" font-size="16" fill="white" text-anchor="middle" font-weight="bold">
+    📊 Linear Projections
+  </text>
+  
+  <rect x="60" y="300" width="100" height="50" rx="15" fill="url(#qkvGradient)" filter="url(#glow)" />
+  <text x="110" y="330" font-family="Arial" font-size="16" fill="white" text-anchor="middle" font-weight="bold">
+    🔍 Query (Q)
+  </text>
+  
+  <rect x="180" y="300" width="100" height="50" rx="15" fill="url(#qkvGradient)" filter="url(#glow)" />
+  <text x="230" y="330" font-family="Arial" font-size="16" fill="white" text-anchor="middle" font-weight="bold">
+    🔑 Key (K)
+  </text>
+  
+  <rect x="300" y="300" width="100" height="50" rx="15" fill="url(#qkvGradient)" filter="url(#glow)" />
+  <text x="350" y="330" font-family="Arial" font-size="16" fill="white" text-anchor="middle" font-weight="bold">
+    💎 Value (V)
+  </text>
+  
+  <!-- Attention Calculation -->
+  <rect x="180" y="390" width="160" height="60" rx="15" fill="url(#attentionGradient)" filter="url(#glow)" />
+  <text x="260" y="415" font-family="Arial" font-size="16" fill="white" text-anchor="middle" font-weight="bold">
+    🧮 Matrix Multiply
+  </text>
+  <text x="260" y="435" font-family="Arial" font-size="16" fill="white" text-anchor="middle" font-weight="bold">
+    Q·K^T
+  </text>
+  
+  <rect x="180" y="480" width="160" height="60" rx="15" fill="url(#attentionGradient)" filter="url(#glow)" />
+  <text x="260" y="505" font-family="Arial" font-size="14" fill="white" text-anchor="middle" font-weight="bold">
+    📏 Scale (÷ √dk)
+  </text>
+  <text x="260" y="525" font-family="Arial" font-size="14" fill="white" text-anchor="middle" font-weight="bold">
+    📊 Softmax
+  </text>
+  
+  <!-- Weighted Sum -->
+  <rect x="400" y="390" width="160" height="60" rx="15" fill="url(#attentionGradient)" filter="url(#glow)" />
+  <text x="480" y="425" font-family="Arial" font-size="16" fill="white" text-anchor="middle" font-weight="bold">
+    🔗 Weighted Sum
+  </text>
+  
+  <!-- Multi-Head Attention -->
+  <rect x="620" y="180" width="120" height="80" rx="15" fill="url(#outputGradient)" filter="url(#glow)" />
+  <text x="680" y="210" font-family="Arial" font-size="16" fill="white" text-anchor="middle" font-weight="bold">
+    🌈 Multi-Head
+  </text>
+  <text x="680" y="235" font-family="Arial" font-size="16" fill="white" text-anchor="middle" font-weight="bold">
+    👁️👁️👁️👁️
+  </text>
+  
+  <rect x="620" y="300" width="120" height="60" rx="15" fill="url(#outputGradient)" filter="url(#glow)" />
+  <text x="680" y="335" font-family="Arial" font-size="16" fill="white" text-anchor="middle" font-weight="bold">
+    🧩 Concat & Project
+  </text>
+  
+  <rect x="620" y="390" width="120" height="60" rx="15" fill="url(#outputGradient)" filter="url(#glow)" />
+  <text x="680" y="425" font-family="Arial" font-size="16" fill="white" text-anchor="middle" font-weight="bold">
+    ✨ Output
+  </text>
+  
+  <!-- Applications -->
+  <rect x="540" y="490" width="120" height="60" rx="15" fill="#E91E63" filter="url(#glow)" />
+  <text x="600" y="525" font-family="Arial" font-size="16" fill="white" text-anchor="middle" font-weight="bold">
+    🪞 Self-Attention
+  </text>
+  
+  <rect x="700" y="490" width="120" height="60" rx="15" fill="#E91E63" filter="url(#glow)" />
+  <text x="760" y="525" font-family="Arial" font-size="16" fill="white" text-anchor="middle" font-weight="bold">
+    🔀 Cross-Attention
+  </text>
+  
+  <!-- Connections -->
+  <!-- Input to Projections -->
+  <line x1="140" y1="140" x2="140" y2="190" stroke="#444" stroke-width="3" marker-end="url(#arrow)" />
+  
+  <!-- Projections to Q,K,V -->
+  <line x1="140" y1="250" x2="110" y2="300" stroke="#444" stroke-width="3" marker-end="url(#arrow)" />
+  <line x1="140" y1="250" x2="230" y2="300" stroke="#444" stroke-width="3" marker-end="url(#arrow)" />
+  <line x1="140" y1="250" x2="350" y2="300" stroke="#444" stroke-width="3" marker-end="url(#arrow)" />
+  
+  <!-- Q,K to Matrix Multiply -->
+  <line x1="110" y1="350" x2="210" y2="390" stroke="#444" stroke-width="3" marker-end="url(#arrow)" />
+  <line x1="230" y1="350" x2="230" y2="390" stroke="#444" stroke-width="3" marker-end="url(#arrow)" />
+  
+  <!-- Matrix Multiply to Scale/Softmax -->
+  <line x1="260" y1="450" x2="260" y2="480" stroke="#444" stroke-width="3" marker-end="url(#arrow)" />
+  
+  <!-- Scale/Softmax to Weighted Sum -->
+  <line x1="340" y1="510" x2="420" y2="430" stroke="#444" stroke-width="3" marker-end="url(#arrow)" />
+  
+  <!-- V to Weighted Sum -->
+  <line x1="350" y1="350" x2="430" y2="390" stroke="#444" stroke-width="3" marker-end="url(#arrow)" />
+  
+  <!-- Weighted Sum to Multi-Head -->
+  <line x1="560" y1="420" x2="620" y2="230" stroke="#444" stroke-width="3" marker-end="url(#arrow)" />
+  
+  <!-- Multi-Head to Concat -->
+  <line x1="680" y1="260" x2="680" y2="300" stroke="#444" stroke-width="3" marker-end="url(#arrow)" />
+  
+  <!-- Concat to Output -->
+  <line x1="680" y1="360" x2="680" y2="390" stroke="#444" stroke-width="3" marker-end="url(#arrow)" />
+  
+  <!-- Output to Applications -->
+  <line x1="680" y1="450" x2="600" y2="490" stroke="#444" stroke-width="3" marker-end="url(#arrow)" />
+  <line x1="680" y1="450" x2="760" y2="490" stroke="#444" stroke-width="3" marker-end="url(#arrow)" />
+  
+  <!-- Math Formula -->
+  <rect x="100" y="550" width="600" height="40" rx="10" fill="#F5F5F5" stroke="#333" stroke-width="2" />
+  <text x="400" y="575" font-family="Arial" font-size="16" text-anchor="middle" font-weight="bold">
+    🧮 Attention(Q,K,V) = softmax(QK^T/√d_k)V 🧮
+  </text>
+  
+  <!-- Legend -->
+  <rect x="40" y="50" width="18" height="18" rx="5" fill="url(#inputGradient)" />
+  <text x="65" y="63" font-family="Arial" font-size="14">🔤 Input</text>
+  
+  <rect x="130" y="50" width="18" height="18" rx="5" fill="url(#qkvGradient)" />
+  <text x="155" y="63" font-family="Arial" font-size="14">🔍🔑💎 Q,K,V</text>
+  
+  <rect x="250" y="50" width="18" height="18" rx="5" fill="url(#attentionGradient)" />
+  <text x="275" y="63" font-family="Arial" font-size="14">⚡ Attention Operations</text>
+  
+  <rect x="420" y="50" width="18" height="18" rx="5" fill="url(#outputGradient)" />
+  <text x="445" y="63" font-family="Arial" font-size="14">🌈 Multi-Head & Output</text>
+  
+  <rect x="600" y="50" width="18" height="18" rx="5" fill="#E91E63" />
+  <text x="625" y="63" font-family="Arial" font-size="14">🔄 Applications</text>
+  
+  <!-- Decorative elements -->
+  <circle cx="45" cy="425" r="15" fill="#FFD54F" opacity="0.6" />
+  <circle cx="65" cy="445" r="10" fill="#FFD54F" opacity="0.4" />
+  <circle cx="35" cy="455" r="8" fill="#FFD54F" opacity="0.3" />
+  
+  <circle cx="755" cy="125" r="15" fill="#81D4FA" opacity="0.6" />
+  <circle cx="775" cy="145" r="10" fill="#81D4FA" opacity="0.4" />
+  <circle cx="745" cy="155" r="8" fill="#81D4FA" opacity="0.3" />
+  
+  <!-- Sparkles -->
+  <text x="30" y="100" font-size="20">✨</text>
+  <text x="770" y="100" font-size="20">✨</text>
+  <text x="50" y="520" font-size="20">✨</text>
+  <text x="750" y="520" font-size="20">✨</text>
+</svg>
