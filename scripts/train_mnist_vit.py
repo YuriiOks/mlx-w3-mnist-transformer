@@ -136,8 +136,8 @@ def main():
     device = get_device()
 
     # --- W&B Init ---
-    run = None
-    run_name = "local_run" # Default if W&B off
+    run_name_base = f"Phase{args.phase}_E{args.epochs}_LR{args.lr}_B{args.batch_size}"
+    run_name = f"PyTorch_{run_name_base}_ViT" # Prepend PT_
     if wandb is not None and not args.no_wandb:
         try:
             if args.wandb_run_name is None:
