@@ -7,6 +7,7 @@
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import math
 import os
 import sys
@@ -23,8 +24,8 @@ if str(project_root) not in sys.path:
 from utils import logger
 
 # --- 1. Patch Embedding ---
-# Takes an image, splits into patches, flattens, and projects to embed_dim.
-# Also adds CLS token and positional embeddings.
+# Takes an image, splits into patches, flattens, and projects to
+# embed_dim. Also adds CLS token and positional embeddings.
 
 class PatchEmbedding(nn.Module):
     """
@@ -32,13 +33,17 @@ class PatchEmbedding(nn.Module):
     Prepends a CLS token and adds positional embeddings.
 
     Args:
-        image_size (int): Size of the input image (assumed square). 
+        image_size (int): Size of the input image (assumed square).
             Default 28 for MNIST.
         patch_size (int): Size of each square patch. Default 7 for MNIST.
-        in_channels (int): Number of input image channels. Default 1 for MNIST.
-        embed_dim (int): The dimensionality of the patch embeddings. Default 64.
+        in_channels (int): Number of input image channels. Default 1 for
+            MNIST.
+        embed_dim (int): The dimensionality of the patch embeddings.
+            Default 64.
     """
-    def __init__(self, image_size=28, patch_size=7, in_channels=1, embed_dim=64):
+    def __init__(
+        self, image_size=28, patch_size=7, in_channels=1, embed_dim=64
+    ):
         super().__init__()
         self.image_size = image_size
         self.patch_size = patch_size
@@ -46,14 +51,17 @@ class PatchEmbedding(nn.Module):
         self.embed_dim = embed_dim
 
         if image_size % patch_size != 0:
-            raise ValueError("Image dimensions must be divisible by patch_size.")
+            raise ValueError(
+                "Image dimensions must be divisible by patch_size."
+            )
 
         self.num_patches = (image_size // patch_size) ** 2
         self.patch_dim = in_channels * patch_size * patch_size
 
         # --- Layers ---
         # CLS token (learnable parameter)
-        self.cls_token = nn.Parameter(torch.randn(1, 1, embed_dim))  # (1, 1, D)
+        self.cls_token = nn.Parameter(torch.randn(1, 1, embed_dim))
+        # Shape: (1, 1, D)
 
         # Linear projection layer for patches
         # Can be implemented efficiently with a Conv2d layer:
@@ -69,7 +77,7 @@ class PatchEmbedding(nn.Module):
         # +1 for the CLS token
         self.position_embedding = nn.Parameter(
             torch.randn(1, self.num_patches + 1, embed_dim)
-        )  # (1, N+1, D)
+        )  # Shape: (1, N+1, D)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -79,7 +87,7 @@ class PatchEmbedding(nn.Module):
             x (torch.Tensor): Input image tensor (Batch, C, H, W).
 
         Returns:
-            torch.Tensor: Embedded patches with CLS token and pos embedding 
+            torch.Tensor: Embedded patches with CLS token and pos embedding
             (Batch, N+1, D).
         """
         batch_size = x.shape[0]
@@ -96,7 +104,7 @@ class PatchEmbedding(nn.Module):
         # Expand CLS token to batch size: (1, 1, D) -> (B, 1, D)
         cls_tokens = self.cls_token.expand(batch_size, -1, -1)
 
-        # Prepend CLS token to patch sequence: (B, 1, D) + (B, N, D) -> (B, N+1, D)
+        # Prepend CLS token: (B, 1, D) + (B, N, D) -> (B, N+1, D)
         x = torch.cat((cls_tokens, x), dim=1)
 
         # Add positional embedding: (B, N+1, D) + (1, N+1, D) -> (B, N+1, D)
@@ -106,7 +114,127 @@ class PatchEmbedding(nn.Module):
         return x
 
 # --- 2. Multi-Head Self-Attention ---
-# Using PyTorch's built-in MultiheadAttention for convenience
+class AttentionHead(nn.Module):
+    """
+    A single head of self-attention.
+
+    Args:
+        embed_dim (int): Total embedding dimension of the input.
+        head_dim (int): Dimension of the subspace for this head.
+        dropout (float): Dropout probability for attention weights.
+    """
+    def __init__(self, embed_dim: int, head_dim: int, dropout: float = 0.0):
+        super().__init__()
+        self.head_dim = head_dim
+        self.scale = head_dim ** -0.5
+
+        # Linear layers to project input to Q, K, V for this head
+        self.q_proj = nn.Linear(embed_dim, head_dim)
+        self.k_proj = nn.Linear(embed_dim, head_dim)
+        self.v_proj = nn.Linear(embed_dim, head_dim)
+
+        self.attn_dropout = nn.Dropout(dropout)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass for a single attention head.
+
+        Args:
+            x (torch.Tensor): Input tensor (Batch, SeqLen, embed_dim).
+
+        Returns:
+            torch.Tensor: Output tensor for this head
+                (Batch, SeqLen, head_dim).
+        """
+        B, N, C = x.shape
+
+        # Project input to Q, K, V for this head
+        q = self.q_proj(x)  # (B, N, head_dim)
+        k = self.k_proj(x)  # (B, N, head_dim)
+        v = self.v_proj(x)  # (B, N, head_dim)
+
+        # Calculate scaled dot-product attention
+        # (B, N, head_dim) @ (B, head_dim, N) -> (B, N, N)
+        attn_scores = (q @ k.transpose(-2, -1)) * self.scale
+        attn_weights = attn_scores.softmax(dim=-1) # (B, N, N)
+        attn_weights = self.attn_dropout(attn_weights)
+
+        # Weighted sum of Values
+        # (B, N, N) @ (B, N, head_dim) -> (B, N, head_dim)
+        output = attn_weights @ v
+
+        return output
+
+# --- NEW: Multi-Head Attention (using AttentionHead) ---
+# This replaces the previous 'Attention' class but keeps the same name
+# for compatibility with TransformerEncoderBlock.
+class Attention(nn.Module):
+    """
+    Multi-Head Self-Attention module using multiple AttentionHead instances.
+
+    Args:
+        embed_dim (int): Total dimension of the model. Default 64.
+        num_heads (int): Number of parallel attention heads. Default 4.
+        attention_dropout (float): Dropout probability for attention weights
+                                   (passed to each AttentionHead).
+                                   Default 0.0.
+        projection_dropout (float): Dropout probability after final
+                                    projection. Default 0.0.
+    """
+    def __init__(
+        self,
+        embed_dim=64,
+        num_heads=4,
+        attention_dropout=0.0,
+        projection_dropout=0.0
+    ):
+        super().__init__()
+        if embed_dim % num_heads != 0:
+             raise ValueError("embed_dim must be divisible by num_heads")
+
+        self.embed_dim = embed_dim
+        self.num_heads = num_heads
+        self.head_dim = embed_dim // num_heads
+
+        # Create multiple AttentionHead modules
+        self.heads = nn.ModuleList([
+            AttentionHead(embed_dim, self.head_dim, dropout=attention_dropout)
+            for _ in range(num_heads)
+        ])
+
+        # Final linear projection layer (Wo)
+        # Input is concatenated heads (H * head_dim = embed_dim)
+        self.proj = nn.Linear(embed_dim, embed_dim)
+        self.proj_dropout = nn.Dropout(projection_dropout)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass for multi-head self-attention.
+
+        Args:
+            x (torch.Tensor): Input tensor (Batch, SeqLen, embed_dim).
+
+        Returns:
+            torch.Tensor: Output tensor after attention
+                (Batch, SeqLen, embed_dim).
+        """
+        B, N, C = x.shape
+
+        # 1. Apply each head independently
+        # List comprehension runs each head on the input 'x'
+        # List of H tensors, each (B, N, head_dim)
+        head_outputs = [head(x) for head in self.heads]
+
+        # 2. Concatenate head outputs along the feature dimension
+        # (B, N, head_dim) * H -> (B, N, H * head_dim = embed_dim)
+        x = torch.cat(head_outputs, dim=-1)
+
+        # 3. Apply final linear projection and dropout
+        x = self.proj(x)
+        x = self.proj_dropout(x)
+
+        return x
+
 
 class Attention(nn.Module):
     """
@@ -125,7 +253,7 @@ class Attention(nn.Module):
             embed_dim=embed_dim,
             num_heads=num_heads,
             dropout=dropout,
-            batch_first=True  # IMPORTANT: Assumes input shape (B, Seq, Dim)
+            batch_first=True  # IMPORTANT: Assumes input (B, Seq, Dim)
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -140,7 +268,7 @@ class Attention(nn.Module):
         """
         # nn.MultiheadAttention expects query, key, value
         # For self-attention, they are the same
-        # It returns attn_output, attn_output_weights (we only need the output)
+        # Returns attn_output, attn_output_weights (we only need output)
         attn_output, _ = self.attention(x, x, x)
         return attn_output
 
@@ -149,7 +277,7 @@ class Attention(nn.Module):
 
 class MLPBlock(nn.Module):
     """
-    Standard Transformer MLP block 
+    Standard Transformer MLP block
     (Linear -> Activation -> Dropout -> Linear -> Dropout).
 
     Args:
@@ -175,7 +303,7 @@ class MLPBlock(nn.Module):
         return x
 
 # --- 4. Transformer Encoder Block ---
-# Combines Multi-Head Attention and MLP with LayerNorm and Residual Connections.
+# Combines Multi-Head Attention and MLP with LayerNorm and Residuals.
 
 class TransformerEncoderBlock(nn.Module):
     """
@@ -185,15 +313,16 @@ class TransformerEncoderBlock(nn.Module):
         embed_dim (int): Embedding dimension.
         num_heads (int): Number of attention heads.
         mlp_ratio (float): MLP expansion ratio. Default 2.0.
-        attention_dropout (float): Dropout for attention module. Default 0.1.
+        attention_dropout (float): Dropout for attention module.
+            Default 0.1.
         mlp_dropout (float): Dropout for MLP block. Default 0.1.
     """
     def __init__(
-        self, 
-        embed_dim=64, 
-        num_heads=4, 
-        mlp_ratio=2.0, 
-        attention_dropout=0.1, 
+        self,
+        embed_dim=64,
+        num_heads=4,
+        mlp_ratio=2.0,
+        attention_dropout=0.1,
         mlp_dropout=0.1
     ):
         super().__init__()
@@ -267,19 +396,24 @@ if __name__ == '__main__':
         mlp_ratio=_mlp_ratio
     )
     encoder_output = encoder_block(patch_output)
-    logger.info(f"TransformerEncoderBlock output shape: {encoder_output.shape}")
-    assert encoder_output.shape == patch_output.shape, "EncoderBlock shape mismatch!"
+    logger.info(
+        f"TransformerEncoderBlock output shape: {encoder_output.shape}"
+    )
+    assert encoder_output.shape == patch_output.shape, \
+        "EncoderBlock shape mismatch!"
 
     # 3. Test Attention module directly (optional)
     attn_module = Attention(embed_dim=_embed_dim, num_heads=_num_heads)
     attn_output = attn_module(patch_output)
     logger.info(f"Attention module output shape: {attn_output.shape}")
-    assert attn_output.shape == patch_output.shape, "Attention module shape mismatch!"
+    assert attn_output.shape == patch_output.shape, \
+        "Attention module shape mismatch!"
 
     # 4. Test MLP Block directly (optional)
     mlp_module = MLPBlock(embed_dim=_embed_dim, mlp_ratio=_mlp_ratio)
     mlp_output = mlp_module(patch_output)
     logger.info(f"MLPBlock output shape: {mlp_output.shape}")
-    assert mlp_output.shape == patch_output.shape, "MLPBlock shape mismatch!"
+    assert mlp_output.shape == patch_output.shape, \
+        "MLPBlock shape mismatch!"
 
     logger.info("✅ All module tests passed (based on shape checks).")
