@@ -28,12 +28,12 @@ try:
     )
     from utils import logger # Optional: if logging needed within the model
 except ImportError as e:
-     print(f"❌ Error importing modules in model.py: {e}")
-     print("   Ensure you are running from project root or necessary paths are set.")
-     # Define dummy classes if import fails, useful for initial checks
-     PatchEmbedding = nn.Module
-     TransformerEncoderBlock = nn.Module
-     logger = None
+    print(f"❌ Error importing modules in model.py: {e}")
+    print("   Ensure you are running from project root or necessary paths are set.")
+    # Define dummy classes if import fails, useful for initial checks
+    PatchEmbedding = nn.Module
+    TransformerEncoderBlock = nn.Module
+    logger = None
 
 # --- Vision Transformer Model ---
 
