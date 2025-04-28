@@ -1,11 +1,13 @@
 # MNIST Digit Classifier (Vision Transformer) - Configuration
 # Copyright (c) 2025 Backprop Bunch Team (Yurii, Amy, Guillaume, Aygun)
+# File: config.yaml
+# Description: Configuration file for training a Vision Transformer on MNIST dataset.
 # Created: 2025-04-28
-# Updated: 2025-04-28
+# Updated: 2025-04-28 # <-- Update this date
 
 # --- General Paths ---
 paths:
-  model_save_dir: "models/mnist_vit"     # Directory to save trained ViT models
+  model_save_dir: "models/mnist_vit"     # Base directory for saving models
   log_dir: "logs"                        # Directory for log files
   log_file_name: "mnist_vit_train.log"   # Name for the main training log file
 
@@ -13,44 +15,62 @@ paths:
 dataset:
   # Phase 1 (Single MNIST)
   image_size: 28
-  patch_size: 7
-  num_classes: 10
-  in_channels: 1
-  # Phase 2 (Grid - Placeholder)
-  image_size_phase2: 56 # For reference when adapting model/trainer
-  grid_size: 2          # 2x2 grid
-  num_outputs_phase2: 4
-  # Phase 3 (Dynamic - Placeholder)
-  # ...
+  patch_size: 7         # (28/7)^2 = 16 patches
+  num_classes: 10       # Digits 0-9
+  in_channels: 1        # MNIST is grayscale
 
-# --- Vision Transformer Model Hyperparameters (Phase 1 Defaults) ---
+  # Phase 2 (Grid)
+  image_size_phase2: 56 # (56/7)^2 = 64 patches
+  # patch_size_phase2: 7 # Can optionally define if different, otherwise uses default patch_size
+  grid_size: 2          # 2x2 grid
+  num_outputs_phase2: 4 # Fixed 4 outputs
+
+  # --- Phase 3 (Dynamic Layout) - Placeholders ---
+  image_size_phase3: 64
+  patch_size_phase3: 8 # Example: (64/8)^2 = 64 patches/cells
+  max_digits_phase3: 5
+  num_classes_phase3: 11 # 0-9 + empty class
+
+# --- Vision Transformer Model Hyperparameters ---
+# --- Reflects the architecture used for Phase 1 & 2 training runs ---
 model:
   embed_dim: 64
-  depth: 4
+  depth: 4             # <<<--- CORRECTED TO 4 (Matches trained model)
   num_heads: 4
   mlp_ratio: 2.0
-  dropout: 0.1         # Dropout in MLP and final head
-  attention_dropout: 0.1 # Dropout in Attention layers
+  dropout: 0.1
+  attention_dropout: 0.1
 
 # --- Training Hyperparameters ---
 training:
-  # Phase 1 Defaults
-  phase1_epochs: 15             # Train a bit longer based on previous results
-  phase1_batch_size: 256
-  phase1_base_lr: 1e-3
-  phase1_warmup_epochs: 0       # Start without warmup for simplicity
-  phase1_weight_decay: 0.03
+  # Group phase-specific settings under sub-keys
+  phase1:
+    epochs: 15
+    batch_size: 256
+    base_lr: 1e-3
+    warmup_epochs: 0
+    weight_decay: 0.03
+  phase2:
+    epochs: 20           # Example default
+    batch_size: 128
+    base_lr: 5e-4
+    warmup_epochs: 2
+    weight_decay: 0.05
+  phase3: # Placeholders
+    epochs: 30
+    batch_size: 64
+    base_lr: 1e-4
+    warmup_epochs: 3
+    weight_decay: 0.05
 
-  # Placeholder for Phase 2/3
-  # phase2_epochs: 30
-  # ...
-
-  # General Optimizer Settings
+  # General settings applicable potentially across phases
   optimizer: "AdamW"
+  scheduler: "CosineAnnealingLR" # If used consistently
+  gradient_clipping: 1.0         # Example value
 
 # --- Evaluation Parameters ---
 evaluation:
-  batch_size: 512              # Can use larger batch size for evaluation
+  batch_size: 512
 
 # --- Logging Configuration ---
 logging:
