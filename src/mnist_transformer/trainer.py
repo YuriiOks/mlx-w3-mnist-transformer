@@ -36,14 +36,15 @@ except ImportError:
 def train_epoch(
     model: nn.Module,
     dataloader: DataLoader,
-    criterion: nn.Module, # Loss function (e.g., CrossEntropyLoss)
+    criterion: nn.Module,
     optimizer: optim.Optimizer,
-    device: torch.device, # Device to train on
+    device: torch.device,
     epoch_num: int,
     total_epochs: int,
-    wandb_run: Optional[Any] = None, # Optional W&B run object
-    log_frequency: int = 100, # How often to log batch loss
-    gradient_clipping: Optional[float] = 1.0 # Max grad norm
+    wandb_run: Optional[Any] = None,
+    log_frequency: int = 100,
+    gradient_clipping: Optional[float] = 1.0,
+    phase: int = 1
 ) -> float:
     """
     Trains the model for one epoch.
@@ -60,6 +61,7 @@ def train_epoch(
         log_frequency (int): Log batch loss every N batches.
         gradient_clipping (Optional[float]): Max norm for gradient
             clipping. None to disable.
+        phase (int): Training phase (1 or 2).
 
     Returns:
         float: The average loss for the epoch.
@@ -81,16 +83,34 @@ def train_epoch(
     for batch_idx, (images, labels) in enumerate(data_iterator):
         # Move data to the specified device
         images = images.to(device)
-        labels = labels.to(device)
+        labels = labels.to(device) # Shape: (B) for P1, (B, 4) for P2
 
-        # Zero the gradients
         optimizer.zero_grad()
-
-        # Forward pass
-        outputs = model(images) # Get logits
+        outputs = model(images) # Shape: (B, 10) for P1, (B, 4, 10) for P2
 
         # Calculate loss
-        loss = criterion(outputs, labels)
+        # --- 👇 Adapted Loss Calculation for Phase ---
+        if phase == 1:
+            loss = criterion(outputs, labels)
+        elif phase == 2:
+            # Reshape for CrossEntropyLoss which expects (N, C) and (N)
+            # Outputs: (B, 4, 10) -> (B*4, 10)
+            # Labels: (B, 4) -> (B*4)
+            batch_size, num_outputs, num_classes = outputs.shape
+            loss = criterion(outputs.view(-1, num_classes), labels.view(-1))
+            # Check if labels are valid (e.g. not -1 if using dummy data)
+            if (labels == -1).any():
+                 logger.warning(
+                     f"Detected dummy label (-1) in batch {batch_idx}, "
+                     f"loss might be inaccurate."
+                 )
+        else: # Handle Phase 3 later
+            logger.error(
+                f"❌ Loss calculation for Phase {phase} not implemented!"
+            )
+            # Placeholder loss
+            loss = torch.tensor(0.0, device=device, requires_grad=True)
+        # --- End Adapt Loss Calculation ---
 
         # Backward pass
         loss.backward()
@@ -127,7 +147,9 @@ def train_epoch(
                     "global_step": global_step
                 })
             except Exception as e:
-                logger.warning(f"⚠️ Failed to log batch metrics to W&B: {e}")
+                logger.warning(
+                    f"⚠️ Failed to log batch metrics to W&B: {e}"
+                )
 
     # Calculate average loss for the epoch
     average_loss = total_loss / num_batches if num_batches > 0 else 0.0
@@ -138,8 +160,9 @@ def train_epoch(
 def evaluate_model(
     model: nn.Module,
     dataloader: DataLoader,
-    criterion: nn.Module, # Can also calculate validation loss
-    device: torch.device
+    criterion: nn.Module,
+    device: torch.device,
+    phase: int = 1
 ) -> Dict[str, float]:
     """
     Evaluates the model on a given dataset.
@@ -149,6 +172,7 @@ def evaluate_model(
         dataloader: DataLoader for the validation or test data.
         criterion: The loss function (e.g., CrossEntropyLoss).
         device: The device to move data/model to.
+        phase (int): Evaluation phase (1 or 2).
 
     Returns:
         Dict[str, float]: Dictionary containing evaluation metrics
@@ -177,14 +201,42 @@ def evaluate_model(
             outputs = model(images) # Get logits
 
             # Calculate loss
-            loss = criterion(outputs, labels)
+            # --- 👇 Adapted Loss & Accuracy Calculation for Phase ---
+            if phase == 1:
+                loss = criterion(outputs, labels)
+                _, predicted = torch.max(outputs.data, 1)
+                batch_total = labels.size(0)
+                batch_correct = (predicted == labels).sum().item()
+            elif phase == 2:
+                batch_size, num_outputs, num_classes = outputs.shape
+                # Reshape for loss calculation
+                loss = criterion(
+                    outputs.view(-1, num_classes), labels.view(-1)
+                )
+                # Reshape for accuracy calculation
+                # Get predictions per output head -> (B, 4)
+                predicted = torch.max(outputs.data, 2)[1]
+                # Total digits in batch = B * 4
+                batch_total = labels.numel()
+                # Compare element-wise
+                batch_correct = (predicted == labels).sum().item()
+            else:
+                logger.error(
+                    f"❌ Evaluation for Phase {phase} not implemented!"
+                )
+                loss = torch.tensor(0.0, device=device)
+                # Assume phase 1 shape for safety
+                batch_total = labels.size(0)
+                batch_correct = 0
+            # --- End Adapt Loss & Accuracy ---
+
             total_loss += loss.item()
 
             # Calculate accuracy
             # Get the index of the max logit
-            _, predicted = torch.max(outputs.data, 1)
-            total_samples += labels.size(0)
-            correct_predictions += (predicted == labels).sum().item()
+            total_loss += loss.item()
+            total_samples += batch_total
+            correct_predictions += batch_correct
 
             data_iterator.set_postfix(loss=f"{loss.item():.4f}")
 
@@ -196,9 +248,10 @@ def evaluate_model(
     )
     logger.info(
         f"🧪 Evaluation finished. Avg Loss: {avg_loss:.4f}, "
-        f"Accuracy: {accuracy:.2f}%"
+        f"Accuracy: {accuracy:.2f}% ({correct_predictions}/{total_samples})"
     )
 
+    # Use consistent naming for W&B logging
     return {"val_loss": avg_loss, "val_accuracy": accuracy}
 
 # --- Main Training Orchestrator Function ---
@@ -215,6 +268,7 @@ def train_model(
     wandb_run: Optional[Any] = None, # Pass W&B run object
     lr_scheduler: Optional[Any] = None, # Optional LR scheduler
     val_dataloader: Optional[DataLoader] = None, # For validation
+    phase: int = 1 # Phase 1 or 2
 ) -> tuple[List[float], Dict[str, float]]:
     """
     Orchestrates the overall model training process.
@@ -233,6 +287,7 @@ def train_model(
         wandb_run: Optional W&B run object.
         lr_scheduler: Optional learning rate scheduler.
         val_dataloader: Optional DataLoader for validation data.
+        phase (int): Training phase (1 or 2).
 
     Returns:
         tuple[List[float], Dict[str, float]]: List of average training
@@ -265,6 +320,7 @@ def train_model(
             epoch_num=epoch,
             total_epochs=epochs,
             wandb_run=wandb_run,
+            phase=phase
         )
         logger.info(
             f"✅ Epoch {epoch+1}/{epochs} | "
@@ -279,7 +335,8 @@ def train_model(
                 model=model,
                 dataloader=val_dataloader,
                 criterion=criterion, # Use the same loss function
-                device=device
+                device=device,
+                phase=phase
             )
             # Log validation metrics to console
             log_str = f"  🧪 Validation | "
@@ -349,36 +406,58 @@ if __name__ == "__main__":
     try:
         # Example dummy components
         _device = torch.device("cpu")
-        _model = nn.Linear(10, 2) # Dummy model
-        _data = [
-            (torch.randn(10), torch.randint(0, 2, (1,)).squeeze())
+        # Dummy for Phase 1 (10 classes)
+        _model_p1 = nn.Linear(10, 10)
+        # Dummy for Phase 2 (4*10 classes)
+        _model_p2 = nn.Linear(10, 40)
+        _data_p1 = [
+            (torch.randn(10), torch.randint(0, 10, (1,)).squeeze())
             for _ in range(5)
         ]
-        _loader = DataLoader(_data, batch_size=2)
+        # Phase 2 labels shape (B=1, 4)
+        _data_p2 = [
+            (torch.randn(10), torch.randint(0, 10, (4,)))
+            for _ in range(5)
+        ]
+        _loader_p1 = DataLoader(_data_p1, batch_size=2)
+        _loader_p2 = DataLoader(_data_p2, batch_size=2)
         _crit = nn.CrossEntropyLoss()
-        _optim = optim.Adam(_model.parameters(), lr=0.01)
+        _optim_p1 = optim.Adam(_model_p1.parameters(), lr=0.01)
+        _optim_p2 = optim.Adam(_model_p2.parameters(), lr=0.01)
 
-        logger.info("Testing train_epoch...")
-        avg_loss = train_epoch(_model, _loader, _crit, _optim, _device, 0, 1)
-        logger.info(f"Dummy train_epoch avg loss: {avg_loss:.4f}")
-
-        logger.info("Testing evaluate_model...")
-        eval_metrics = evaluate_model(_model, _loader, _crit, _device)
-        logger.info(f"Dummy evaluate_model metrics: {eval_metrics}")
-
-        logger.info("Testing train_model...")
-        losses, metrics = train_model(
-            _model, _loader, _crit, _optim, _device, 2,
-            "./temp_test_model", "test_run", val_dataloader=_loader
+        logger.info("Testing train_epoch (Phase 1)...")
+        avg_loss_p1 = train_epoch(
+            _model_p1, _loader_p1, _crit, _optim_p1, _device, 0, 1, phase=1
         )
-        logger.info(f"Dummy train_model epoch losses: {losses}")
-        logger.info(f"Dummy train_model final metrics: {metrics}")
-        # Clean up dummy save directory
-        if os.path.exists("./temp_test_model"):
-             import shutil
-             shutil.rmtree("./temp_test_model")
+        logger.info(f"Dummy P1 train_epoch avg loss: {avg_loss_p1:.4f}")
+
+        logger.info("Testing train_epoch (Phase 2)...")
+        # Need to adapt the dummy model forward for Phase 2 shape
+        class DummyP2Model(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.fc = nn.Linear(10, 40)
+            def forward(self, x):
+                # Simulate reshape
+                return self.fc(x).view(x.shape[0], 4, 10)
+        _model_p2_wrap = DummyP2Model()
+        _optim_p2 = optim.Adam(_model_p2_wrap.parameters(), lr=0.01)
+        avg_loss_p2 = train_epoch(
+            _model_p2_wrap, _loader_p2, _crit, _optim_p2, _device, 0, 1,
+            phase=2
+        )
+        logger.info(f"Dummy P2 train_epoch avg loss: {avg_loss_p2:.4f}")
+
+
+        logger.info("Testing evaluate_model (Phase 2)...")
+        val_metrics = evaluate_model(
+            _model_p2_wrap, _loader_p2, _crit, _device, phase=2
+        )
+        logger.info(f"Dummy P2 evaluate_model metrics: {val_metrics}")
 
         logger.info("✅ Basic trainer function calls successful.")
 
     except Exception as e:
-        logger.error(f"❌ Error during basic trainer tests: {e}", exc_info=True)
+        logger.error(
+            f"❌ Error during basic trainer tests: {e}", exc_info=True
+        )
