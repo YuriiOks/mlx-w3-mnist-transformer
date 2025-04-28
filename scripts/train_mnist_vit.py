@@ -217,9 +217,11 @@ def main():
 
     # --- Train ---
     logger.info("--- Starting Training ---")
-    epoch_losses = train_model(
+
+    epoch_losses, last_val_metrics = train_model(
         model=model,
         train_dataloader=train_dataloader,
+        val_dataloader=test_dataloader, # Pass test dataloader here
         criterion=criterion,
         optimizer=optimizer,
         device=device,
@@ -233,7 +235,11 @@ def main():
 
     # --- Finalize ---
     logger.info("--- Finalizing Run ---")
+    # You can optionally log the final validation metrics here if desired
+    logger.info(f"Final Validation Metrics: {last_val_metrics}")
+
     run_save_path = Path(args.model_save_dir) / (run.name if run else run_name)
+    # save_losses and plot_losses likely only need epoch_losses
     loss_file = save_losses(epoch_losses, run_save_path)
     plot_file = plot_losses(epoch_losses, run_save_path)
     model_file = run_save_path / "model_final.pth" # Path where trainer saved
