@@ -14,13 +14,15 @@ import math  # For math.ceil
 import os
 import sys
 from pathlib import Path
+from tqdm import tqdm 
 from typing import List, Dict, Optional, Any, Tuple
 
 # --- Add project root for imports ---
 script_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = Path(script_dir).parent.parent  # Go up two levels
 if str(project_root) not in sys.path:
-    print(f"🚂 [trainer_mlx.py] Adding project root to sys.path: {project_root}")
+    print(f"🚂 [trainer_mlx.py] Adding project root to sys.path: "
+          f"{project_root}")
     sys.path.insert(0, str(project_root))
 
 from utils import logger
@@ -130,9 +132,14 @@ def train_epoch_mlx(
 
     for i in data_iterator:
         # Manual batching
-        batch_indices = perm[i * batch_size : (i + 1) * batch_size]
-        batch_images = images_full[batch_indices]
-        batch_labels = labels_full[batch_indices]
+        np_batch_indices = perm[i * batch_size : (i + 1) * batch_size]
+
+        # --- 👇 Convert indices to MLX array ---
+        mlx_batch_indices = mx.array(np_batch_indices)
+
+        # Index using the MLX array
+        batch_images = images_full[mlx_batch_indices]
+        batch_labels = labels_full[mlx_batch_indices]
 
         # Get loss and gradients for the batch
         (loss, acc), grads = loss_and_grad_fn(
@@ -202,11 +209,17 @@ def evaluate_model_mlx(
     )
 
     for i in data_iterator:
-        batch_indices = np.arange(
+        # Generate batch indices with NumPy
+        np_batch_indices = np.arange(
             i * batch_size, min(num_samples, (i + 1) * batch_size)
         )
-        batch_images = images_full[batch_indices]
-        batch_labels = labels_full[batch_indices]
+
+        # --- 👇 Convert indices to MLX array ---
+        mlx_batch_indices = mx.array(np_batch_indices)
+
+        # Index using the MLX array
+        batch_images = images_full[mlx_batch_indices]
+        batch_labels = labels_full[mlx_batch_indices]
 
         # Get loss and accuracy for the batch
         loss, acc = calculate_loss_acc_mlx(
@@ -217,7 +230,7 @@ def evaluate_model_mlx(
         mx.eval(loss, acc)
 
         # Accumulate results
-        total_loss += loss.item() * len(batch_indices)
+        total_loss += loss.item() * len(np_batch_indices)
         total_correct += acc.item() * batch_labels.size
         total_samples += batch_labels.size
 
@@ -336,4 +349,5 @@ def train_model_mlx(
 # --- Test Block ---
 # (Skipping complex test block for MLX trainer; test via main script) ---
 # if __name__ == "__main__":
-#    logger.info("🧪 Running trainer_mlx.py directly is complex. Test via train script.")
+#    logger.info("🧪 Running trainer_mlx.py directly is complex. "
+#                "Test via train script.")
