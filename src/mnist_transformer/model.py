@@ -28,7 +28,7 @@ try:
     from utils import logger # Optional: if logging needed within the model
 except ImportError as e:
      print(f"❌ Error importing modules in model.py: {e}")
-     print("   Ensure you are running from project root or necessary paths are set.")
+     print("   Ensure you are running from project root or paths are set.")
      # Define dummy classes if import fails
      PatchEmbedding = nn.Module
      TransformerEncoderBlock = nn.Module
@@ -45,7 +45,7 @@ class VisionTransformer(nn.Module):
         img_size (int): Size of the input image (assumed square).
         patch_size (int): Size of each square patch.
         in_channels (int): Number of input image channels.
-        num_classes (int): Number of classes *per output head*. 
+        num_classes (int): Number of classes *per output head*.
             (e.g., 10 for MNIST digits).
         embed_dim (int): Dimensionality of the token/patch embeddings.
         depth (int): Number of transformer encoder layers.
@@ -53,7 +53,7 @@ class VisionTransformer(nn.Module):
         mlp_ratio (float): Ratio of MLP hidden dim to embedding dim.
         attention_dropout (float): Dropout rate for attention weights.
         mlp_dropout (float): Dropout rate for MLP layers.
-        num_outputs (int): Number of separate classification outputs needed 
+        num_outputs (int): Number of separate classification outputs needed
             (1 for Phase 1, 4 for Phase 2). Default 1.
     """
     def __init__(
@@ -101,16 +101,23 @@ class VisionTransformer(nn.Module):
         # 3. Final Layer Normalization (applied before MLP head)
         # --- 👇 Correct Assignment ---
         self.norm = nn.LayerNorm(embed_dim) # Assign to self.norm
-        
+
         # 4. MLP Classifier Head
         # Output dimension depends on the number of digits we want to predict
-        # Output size = num_outputs * num_classes (e.g., 4 * 10 = 40 for Phase 2)
-        self.head = nn.Linear(embed_dim, num_classes * num_outputs) # <-- MODIFIED HEAD SIZE
+        # Output size = num_outputs * num_classes (e.g., 4 * 10 = 40 for P2)
+        head_output_dim = num_classes * num_outputs
+        self.head = nn.Linear(embed_dim, head_output_dim) # <-- MODIFIED
 
         # Initialize weights
         self._initialize_weights()
 
-        if logger: logger.info(f"🧠 VisionTransformer initialized: img_size={img_size}, patch_size={patch_size}, depth={depth}, heads={num_heads}, embed_dim={embed_dim}, num_outputs={num_outputs}")
+        if logger:
+            log_msg = (
+                f"🧠 ViT initialized: img={img_size}, patch={patch_size}, "
+                f"depth={depth}, heads={num_heads}, embed={embed_dim}, "
+                f"outputs={num_outputs}"
+            )
+            logger.info(log_msg)
 
     def _initialize_weights(self):
         # ... (initialization code remains the same) ...
@@ -136,7 +143,8 @@ class VisionTransformer(nn.Module):
         Returns:
             torch.Tensor: Logits output. Shape depends on num_outputs:
                           - If num_outputs=1: (Batch, NumClasses)
-                          - If num_outputs>1: (Batch, NumOutputs, NumClasses) # Reshaped for clarity
+                          - If num_outputs>1: (Batch, NumOutputs, NumClasses)
+                            # Reshaped for clarity
         """
         # 1. Get Patch Embeddings + CLS token + Positional Embeddings
         x = self.patch_embed(x) # (B, N+1, D)
@@ -152,16 +160,20 @@ class VisionTransformer(nn.Module):
         # 4. Pass CLS token output through MLP Head
         logits = self.head(cls_token_output) # (B, NumOutputs * NumClasses)
 
-        # 5. Reshape if multiple outputs for clarity and easier loss calculation
-        # Reshape from (B, NumOutputs * NumClasses) to (B, NumOutputs, NumClasses)
+        # 5. Reshape if multiple outputs for clarity and easier loss calc
+        # Reshape from (B, NumOutputs * NumClasses) to
+        # (B, NumOutputs, NumClasses)
         if self.num_outputs > 1:
-            logits = logits.view(x.shape[0], self.num_outputs, self.num_classes) # <-- RESHAPE ADDED
+            logits = logits.view(
+                x.shape[0], self.num_outputs, self.num_classes
+            ) # <-- RESHAPE ADDED
 
         return logits
 
 # --- Test Block ---
 if __name__ == '__main__':
-    if logger: logger.info("🧪 Testing VisionTransformer Model (Phase 1 & Phase 2)...")
+    if logger:
+        logger.info("🧪 Testing VisionTransformer Model (P1 & P2)...")
 
     # --- Test Phase 1 Config ---
     logger.info("\n--- Testing Phase 1 Configuration ---")
@@ -176,7 +188,9 @@ if __name__ == '__main__':
     p1_num_outputs = 1 # Single digit output
     p1_mlp_ratio = 2.0 # <-- You need to define this variable
 
-    p1_dummy_images = torch.randn(p1_batch_size, p1_in_channels, p1_img_size, p1_img_size)
+    p1_dummy_images = torch.randn(
+        p1_batch_size, p1_in_channels, p1_img_size, p1_img_size
+    )
     if logger: logger.info(f"Phase 1 Input shape: {p1_dummy_images.shape}")
 
     p1_vit_model = VisionTransformer(
@@ -194,17 +208,23 @@ if __name__ == '__main__':
     try:
         p1_output_logits = p1_vit_model(p1_dummy_images)
         if logger: logger.info(f"✅ Phase 1 Model Forward Pass Successful!")
-        if logger: logger.info(f"Phase 1 Output logits shape: {p1_output_logits.shape}")
-        assert p1_output_logits.shape == (p1_batch_size, p1_num_classes), "Phase 1 Output shape mismatch!"
+        if logger:
+            logger.info(f"Phase 1 Output logits shape: {p1_output_logits.shape}")
+        expected_p1_shape = (p1_batch_size, p1_num_classes)
+        assert p1_output_logits.shape == expected_p1_shape, \
+            f"Phase 1 Output shape mismatch! Got {p1_output_logits.shape}, " \
+            f"expected {expected_p1_shape}"
     except Exception as e:
-        if logger: logger.error(f"❌ Error during Phase 1 model test: {e}", exc_info=True)
+        if logger:
+            logger.error(f"❌ Error during Phase 1 model test: {e}",
+                         exc_info=True)
 
 
     # --- Test Phase 2 Config ---
     logger.info("\n--- Testing Phase 2 Configuration ---")
     p2_batch_size = 2 # Smaller batch for potentially larger model
     p2_img_size = 56 # 2x2 grid
-    p2_patch_size = 7 # Keep patch size same? Or change? Let's keep 7 for now (-> 64 patches)
+    p2_patch_size = 7 # Keep patch size same? Or change? Keep 7 (-> 64)
     p2_in_channels = 1
     p2_num_classes = 10 # Still 10 digits per output
     p2_embed_dim = 64 # Keep embed_dim same
@@ -214,7 +234,9 @@ if __name__ == '__main__':
     p2_mlp_ratio = 2.0 # Define mlp_ratio for phase 2
 
 
-    p2_dummy_images = torch.randn(p2_batch_size, p2_in_channels, p2_img_size, p2_img_size)
+    p2_dummy_images = torch.randn(
+        p2_batch_size, p2_in_channels, p2_img_size, p2_img_size
+    )
     if logger: logger.info(f"Phase 2 Input shape: {p2_dummy_images.shape}")
 
     p2_vit_model = VisionTransformer(
@@ -224,14 +246,22 @@ if __name__ == '__main__':
         num_classes=p2_num_classes,
         embed_dim=p2_embed_dim,
         depth=p2_depth,
-        num_heads=p2_num_heads, num_outputs=p2_num_outputs,
-        mlp_ratio=p2_mlp_ratio, 
+        num_heads=p2_num_heads,
+        num_outputs=p2_num_outputs,
+        mlp_ratio=p2_mlp_ratio,
     )
 
     try:
         p2_output_logits = p2_vit_model(p2_dummy_images)
         if logger: logger.info(f"✅ Phase 2 Model Forward Pass Successful!")
-        if logger: logger.info(f"Phase 2 Output logits shape: {p2_output_logits.shape}") # Expected: (Batch, NumOutputs, NumClasses)
-        assert p2_output_logits.shape == (p2_batch_size, p2_num_outputs, p2_num_classes), "Phase 2 Output shape mismatch!"
+        if logger:
+            # Expected: (Batch, NumOutputs, NumClasses)
+            logger.info(f"Phase 2 Output logits shape: {p2_output_logits.shape}")
+        expected_p2_shape = (p2_batch_size, p2_num_outputs, p2_num_classes)
+        assert p2_output_logits.shape == expected_p2_shape, \
+            f"Phase 2 Output shape mismatch! Got {p2_output_logits.shape}, " \
+            f"expected {expected_p2_shape}"
     except Exception as e:
-        if logger: logger.error(f"❌ Error during Phase 2 model test: {e}", exc_info=True)
+        if logger:
+            logger.error(f"❌ Error during Phase 2 model test: {e}",
+                         exc_info=True)
