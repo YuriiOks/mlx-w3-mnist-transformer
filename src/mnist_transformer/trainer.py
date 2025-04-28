@@ -125,6 +125,64 @@ def train_epoch(
     average_loss = total_loss / num_batches if num_batches > 0 else 0.0
     return average_loss
 
+# --- Evaluation Function ---
+
+def evaluate_model(
+    model: nn.Module,
+    dataloader: DataLoader,
+    criterion: nn.Module, # Can also calculate validation loss
+    device: torch.device
+) -> Dict[str, float]:
+    """
+    Evaluates the model on a given dataset.
+
+    Args:
+        model: The PyTorch model to evaluate.
+        dataloader: DataLoader for the validation or test data.
+        criterion: The loss function (e.g., CrossEntropyLoss).
+        device: The device to move data/model to.
+
+    Returns:
+        Dict[str, float]: Dictionary containing evaluation metrics (e.g., 'val_loss', 'val_accuracy').
+    """
+    model.eval() # Set model to evaluation mode
+    total_loss = 0.0
+    correct_predictions = 0
+    total_samples = 0
+    num_batches = len(dataloader)
+
+    if num_batches == 0:
+        logger.warning("⚠️ Evaluation dataloader is empty.")
+        return {"val_loss": 0.0, "val_accuracy": 0.0}
+
+    logger.info("🧪 Starting evaluation...")
+    with torch.no_grad(): # Disable gradient calculations for efficiency
+        data_iterator = tqdm(dataloader, desc="Evaluating", leave=False, unit="batch")
+        for images, labels in data_iterator:
+            images = images.to(device)
+            labels = labels.to(device)
+
+            # Forward pass
+            outputs = model(images) # Get logits
+
+            # Calculate loss
+            loss = criterion(outputs, labels)
+            total_loss += loss.item()
+
+            # Calculate accuracy
+            _, predicted = torch.max(outputs.data, 1) # Get the index of the max logit
+            total_samples += labels.size(0)
+            correct_predictions += (predicted == labels).sum().item()
+
+            data_iterator.set_postfix(loss=f"{loss.item():.4f}")
+
+
+    avg_loss = total_loss / num_batches if num_batches > 0 else 0.0
+    accuracy = (correct_predictions / total_samples) * 100.0 if total_samples > 0 else 0.0
+    logger.info(f"🧪 Evaluation finished. Avg Loss: {avg_loss:.4f}, Accuracy: {accuracy:.2f}%")
+
+    return {"val_loss": avg_loss, "val_accuracy": accuracy}
+
 # --- Main Training Orchestrator Function ---
 
 def train_model(
@@ -139,7 +197,6 @@ def train_model(
     wandb_run: Optional[Any] = None, # Pass W&B run object
     lr_scheduler: Optional[Any] = None, # Optional LR scheduler
     val_dataloader: Optional[DataLoader] = None, # For validation
-    evaluation_fn: Optional[Any] = None, # For validation metrics
 ) -> List[float]:
     """
     Orchestrates the overall model training process.
@@ -174,6 +231,7 @@ def train_model(
             logger.warning(f"⚠️ Failed to initiate wandb.watch: {e}")
 
     for epoch in range(epochs):
+        # --- Training Epoch ---
         avg_train_loss = train_epoch(
             model=model,
             dataloader=train_dataloader,
@@ -183,35 +241,51 @@ def train_model(
             epoch_num=epoch,
             total_epochs=epochs,
             wandb_run=wandb_run,
-            # Add other args like log_frequency, gradient_clipping from config if needed
         )
         logger.info(f"✅ Epoch {epoch+1}/{epochs} | Avg Train Loss: {avg_train_loss:.4f}")
         epoch_losses.append(avg_train_loss)
 
-        # --- Optional: Validation Step ---
-        if val_dataloader and evaluation_fn:
-            val_metrics = evaluation_fn(model, val_dataloader, device)
-            logger.info(f"  Validation Metrics: {val_metrics}")
-            if wandb is not None and wandb_run is not None:
-                wandb_run.log({"epoch": epoch + 1, **val_metrics}) # Log validation metrics
+        # --- Validation Step ---
+        val_metrics = {} # Dictionary to store validation results
+        if val_dataloader:
+            val_metrics = evaluate_model( # Call the evaluation function
+                model=model,
+                dataloader=val_dataloader,
+                criterion=criterion, # Use the same loss function
+                device=device
+            )
+            # Log validation metrics to console
+            log_str = f"  🧪 Validation | "
+            for key, value in val_metrics.items():
+                 log_str += f"{key}: {value:.4f} | "
+            logger.info(log_str.strip())
+        # --- End Validation Step ---
 
-        # Learning Rate Scheduler Step (if provided)
+        # Learning Rate Scheduler Step
         if lr_scheduler is not None:
-            # Handle different scheduler types (e.g., ReduceLROnPlateau needs metrics)
             if isinstance(lr_scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
-               lr_scheduler.step(val_metrics['val_loss']) # Needs validation loss
+                # Need validation loss if using ReduceLROnPlateau
+                if "val_loss" in val_metrics:
+                     lr_scheduler.step(val_metrics['val_loss'])
+                else:
+                     logger.warning("⚠️ ReduceLROnPlateau scheduler needs 'val_loss' but validation was not run.")
             else:
-                lr_scheduler.step() # For schedulers like CosineAnnealingLR, StepLR etc.
+                lr_scheduler.step()
+
 
 
         # --- Log Epoch Metrics to W&B ---
         if wandb is not None and wandb_run is not None:
-             try:
-                 wandb_log = {"epoch": epoch + 1, "avg_train_loss": avg_train_loss}
-                 # Could add validation metrics here if validation is implemented
-                 wandb_run.log(wandb_log)
-             except Exception as e:
-                 logger.error(f"❌ W&B epoch log failed: {e}")
+            try:
+                # Combine train and validation metrics for logging
+                wandb_log = {
+                    "epoch": epoch + 1,
+                    "avg_train_loss": avg_train_loss,
+                    **val_metrics # Add all validation metrics (e.g., val_loss, val_accuracy)
+                    }
+                wandb_run.log(wandb_log)
+            except Exception as e:
+                logger.error(f"❌ W&B epoch log failed: {e}")
 
 
     logger.info("🏁 Training finished.")
@@ -226,7 +300,7 @@ def train_model(
     except Exception as e:
         logger.error(f"❌ Failed to save final model: {e}", exc_info=True)
 
-    return epoch_losses
+    return epoch_losses, val_metrics
 
 
 # --- Test Block (Optional - More involved to set up full training here) ---
