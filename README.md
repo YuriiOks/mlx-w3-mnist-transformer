@@ -1,13 +1,9 @@
-<!-- Badges -->
-<p align="center">
-    <a href="https://github.com/YuriiOks/mlx-w3-mnist-transformer"><img src="https://img.shields.io/badge/GitHub-Repository-blue?style=for-the-badge&logo=github" alt="GitHub Repository"/></a>
-    <img src="https://img.shields.io/github/contributors/YuriiOks/mlx-w3-mnist-transformer?style=for-the-badge" alt="Contributors"/>
-    <img src="https://img.shields.io/github/issues/YuriiOks/mlx-w3-mnist-transformer?style=for-the-badge" alt="Issues"/>
-    <img src="https://img.shields.io/github/license/YuriiOks/mlx-w3-mnist-transformer?style=for-the-badge" alt="License"/>
-</p>
-
-
 # MNIST Digit Classifier using Vision Transformer (ViT) 🖼️➡️🔢🧠
+
+[![GitHub Repository](https://img.shields.io/badge/GitHub-Repository-blue?style=for-the-badge&logo=github)](https://github.com/YuriiOks/mlx-w3-mnist-transformer)
+[![Contributors](https://img.shields.io/github/contributors/YuriiOks/mlx-w3-mnist-transformer?style=for-the-badge)](https://github.com/YuriiOks/mlx-w3-mnist-transformer/graphs/contributors)
+[![Issues](https://img.shields.io/github/issues/YuriiOks/mlx-w3-mnist-transformer?style=for-the-badge)](https://github.com/YuriiOks/mlx-w3-mnist-transformer/issues)
+[![License](https://img.shields.io/github/license/YuriiOks/mlx-w3-mnist-transformer?style=for-the-badge)](https://github.com/YuriiOks/mlx-w3-mnist-transformer/blob/main/LICENSE)
 
 [![MLX Institute Logo](https://ml.institute/logo.png)](http://ml.institute)
 
