@@ -1,111 +1,113 @@
 # MNIST Digit Classifier (Transformer) - Project Structure
 
-This document outlines the detailed directory structure and the purpose of key files for the Week 3 MNIST Vision Transformer project by **Team Backprop Bunch**. The project aims to build and train a Vision Transformer model progressively, starting with single-digit recognition and scaling up to more complex scenarios.
+This document outlines the detailed directory structure and the purpose of key files for the Week 3 MNIST Vision Transformer project by **Team Backprop Bunch**. The project aims to build and train a Vision Transformer model progressively across three phases.
 
 ## Directory Tree 🌳
 
 ```
 📁 mlx-w3-mnist-transformer/
 ├── 📁 app/
-│   └── 📄 __init__.py
-├── 📄 config.yaml           # ⚙️ NEW Configuration for ViT (phases, model, training)
-├── 📁 data/                 # 📊 MNIST dataset (auto-downloaded)
-│   └── MNIST/
-│       ├── processed/
-│       └── raw/
+│ └── 📄 init.py
+├── 📄 config.yaml # ⚙️ ViT configuration (phases, model, training)
+├── 📁 data/ # 📊 MNIST dataset (auto-downloaded)
+│ └── MNIST/
+│ ├── processed/
+│ └── raw/
 ├── 🐳 Dockerfile
-├── 📁 docs/                 # 📄 Project documentation
-│   ├── 📄 05_QKV.md         # (Example Transformer Note)
-│   ├── (...)             # (Other relevant general notes: 06-12)
-│   └── 📄 STRUCTURE.MD      # 👈 This file
-├── 📁 logs/                 # 📝 Runtime logs (e.g., mnist_vit_train.log)
-├── 📁 models/               # 🧠 Saved model artifacts
-│   └── 📁 mnist_vit/        #    Subdir for this project's models
-│       └── 📁 phase1_run_XYZ/ #    Example run output
-│           ├── 📄 model_final.pth
-│           ├── 📄 training_losses.json
-│           └── 📄 loss_plot.png
-├── 📁 notebooks/            # 📓 Jupyter notebooks for exploration
-│   └── 📄 01_mnist_vit_exploration.ipynb
+├── 📁 docs/ # 📄 Project documentation
+│ ├── 📄 05_QKV.md # (Example Transformer Note)
+│ ├── (...) # (Other relevant general notes: 06-12)
+│ └── 📄 STRUCTURE.MD # 👈 This file
+├── 📁 logs/ # 📝 Runtime logs (e.g., mnist_vit_train.log)
+├── 📁 models/ # 🧠 Saved model artifacts
+│ └── 📁 mnist_vit/ # Subdir for this project's models
+│ ├── 📁 Phase1_E15_.../ # Example Phase 1 run output
+│ │ ├── 📄 model_final.pth
+│ │ ├── ...
+│ └── 📁 Phase2_E20_.../ # Example Phase 2 run output
+│ ├── 📄 model_final.pth
+│ └── ...
+├── 📁 notebooks/ # 📓 Jupyter notebooks
+│ ├── 📄 01_mnist_vit_exploration.ipynb # EDA, Patching tests
+│ ├── 📄 02_phase2_results_viz.ipynb # Visualization for Phase 2
+│ └── 📄 03_phase3_design_ideas.ipynb # Brainstorming for Phase 3
 ├── 📄 .gitignore
 ├── 📄 LICENSE
-├── 📄 README.md             # 👋 Updated project overview
-├── 📄 requirements.txt      # 📦 Python dependencies (torch, torchvision, timm?, wandb)
-├── 📁 scripts/              # ▶️ Runnable Python scripts
-│   ├── 📄 train_mnist_vit.py # 👈 Main training script (handles phases)
-│   ├── 📄 evaluate.py       # 👈 Evaluation script
-│   └── 📄 generate_project_doc.py # (Optional utility)
-├── 🐍 src/                  # 🐍 Core Python source code
-│   ├── 📄 __init__.py
-│   └── 📁 mnist_transformer/ # 👈 Module for ViT logic
-│       ├── 📄 __init__.py
-│       ├── 📄 dataset.py    # 👈 Handles MNIST (P1), 2x2 grid (P2), dynamic (P3)
-│       ├── 📄 modules.py    # 👈 ViT building blocks (PatchEmbed, Attention, MLP, EncoderBlock)
-│       ├── 📄 model.py      # 👈 Defines the VisionTransformer class (adapts for P1/P2/P3)
-│       ├── 📄 trainer.py    # 👈 Training loop logic (adapts loss/steps for P1/P2/P3)
-│       └── 📄 evaluation.py # 👈 (Optional) Metrics calculation
+├── 📄 README.md # 👋 Project overview
+├── 📄 requirements.txt # 📦 Python dependencies
+├── 📁 scripts/ # ▶️ Runnable Python scripts
+│ ├── 📄 train_mnist_vit.py # 👈 Main training script (handles phases)
+│ ├── 📄 evaluate.py # 👈 Evaluation script
+│ └── 📄 generate_project_doc.py # (Optional utility)
+├── 🐍 src/ # 🐍 Core Python source code
+│ ├── 📄 init.py
+│ └── 📁 mnist_transformer/ # 👈 Module for ViT logic
+│ ├── 📄 init.py
+│ ├── 📄 dataset.py # 👈 Handles MNIST (P1), 2x2 grid (P2), dynamic (P3)
+│ ├── 📄 modules.py # 👈 ViT building blocks (PatchEmbed, Attention, MLP, EncoderBlock)
+│ ├── 📄 model.py # 👈 Defines VisionTransformer class (adapts P1/P2/P3)
+│ ├── 📄 trainer.py # 👈 Training/Eval loops (adapts loss/acc for P1/P2/P3)
+│ └── 📄 evaluation.py # 👈 (Optional) Metrics calculation functions
 │
-└── 🛠️ utils/                # 🛠️ Shared utility modules
-    ├── 📄 __init__.py
-    ├── 📄 device_setup.py
-    ├── 📄 logging.py
-    └── 📄 run_utils.py
+└── 🛠️ utils/ # 🛠️ Shared utility modules
+├── 📄 init.py
+├── 📄 device_setup.py
+├── 📄 logging.py
+└── 📄 run_utils.py
 ```
+
 
 ## Detailed Directory & File Descriptions 📜
 
-*   **Root Directory (`mlx-w3-mnist-transformer/`)**: Contains configuration, main scripts, documentation, and subdirectories for source code, data, models, etc. for the MNIST Vision Transformer project.
-    *   📄 **`.gitignore`**: Specifies untracked files/directories (e.g., `.venv`, `logs/`, `models/`, `wandb/`, `__pycache__/`, `data/MNIST/`).
-    *   📄 **`config.yaml`** ⚙️: Central configuration file for the ViT project. Defines paths, dataset parameters (image size, patch size, classes per phase), model hyperparameters (embedding dim, depth, heads, MLP ratio), training settings (epochs, batch size, learning rate, optimizer, warmup per phase), and logging settings.
-    *   📄 **`Dockerfile`** 🐳: (Placeholder/Optional) Instructions for building a Docker container image, enabling deployment or reproducible environments.
-    *   📄 **`LICENSE`**: Contains the project's license information.
-    *   📄 **`README.md`** 👋: Main project overview. Describes the MNIST ViT goal (progressive phases), setup instructions, usage for training/evaluation, and team members. *(Needs updating for Week 3)*.
-    *   📄 **`requirements.txt`** 📦: Lists Python dependencies (`torch`, `torchvision`, `wandb`, `PyYAML`, `tqdm`, potentially `timm`, `matplotlib`, `numpy`, `pandas`, `scikit-learn`).
+*   **Root Directory (`mlx-w3-mnist-transformer/`)**: Main project directory for the MNIST Vision Transformer.
+    *   📄 **`.gitignore`**: Lists files/dirs Git should ignore (e.g., `.venv`, `logs/`, `models/`, `wandb/`, `data/MNIST/`).
+    *   📄 **`config.yaml`** ⚙️: Central config for ViT project. Defines paths, dataset params (per phase), model hyperparameters (shared/phase-specific), training settings (per phase), evaluation, and logging.
+    *   📄 **`Dockerfile`** 🐳: (Optional) For building a Docker container.
+    *   📄 **`LICENSE`**: Project license.
+    *   📄 **`README.md`** 👋: High-level overview, setup, usage, status, and plan.
+    *   📄 **`requirements.txt`** 📦: Python dependencies (`torch`, `torchvision`, `wandb`, `PyYAML`, `tqdm`, `coloredlogs`, etc.).
 
-*   📁 **`app/`**: (Placeholder) Contains code for a potential future user-facing application or API service.
-    *   📄 **`__init__.py`**: Marks `app` as a Python package.
+*   📁 **`app/`**: (Optional) For future API/UI deployment.
+    *   📄 **`__init__.py`**: Makes `app` a Python package.
 
 *   📁 **`data/`** 📊: Default location for datasets.
-    *   📁 **`MNIST/`**: Directory where `torchvision.datasets.MNIST` will automatically download and store the MNIST dataset files. (Should be gitignored).
+    *   📁 **`MNIST/`**: Auto-created by `torchvision` to store downloaded MNIST files. (Gitignored).
 
-*   📁 **`docs/`** 📄: Contains project documentation, including conceptual notes on Transformers and ViT.
-    *   📄 `0X_*.md`: Markdown files explaining core concepts (Attention, ViT architecture, Training Tricks, etc.).
-    *   📄 **`STRUCTURE.MD`**: This file.
+*   📁 **`docs/`** 📄: Project documentation and notes.
+    *   📄 `0X_*.md`: Conceptual notes on Transformers, ViT, etc.
+    *   📄 **`STRUCTURE.MD`**: This file, describing the project structure.
+    *   📄 **`DEV_PLAN_W3.md`**: Detailed development plan and task breakdown for Week 3.
 
-*   📁 **`logs/`** 📝: Stores runtime log files generated by the training/evaluation scripts (configured in `utils/logging.py`). (Gitignored).
+*   📁 **`logs/`** 📝: Stores runtime log files (e.g., `mnist_vit_train.log`). (Gitignored).
 
-*   📁 **`models/`** 🧠: Root directory for storing saved model artifacts. (Gitignored).
-    *   📁 **`mnist_vit/`**: Contains subdirectories specific to trained MNIST Vision Transformer runs.
-        *   📁 **`<RUN_NAME>/`** (e.g., `phase1_run_XYZ/`): A subdirectory created for each training run, named based on phase, hyperparameters or W&B run name.
-            *   📄 **`model_final.pth`**: Saved state dictionary of the trained ViT model.
-            *   📄 **`training_losses.json`**, 📄 **`loss_plot.png`**: Saved training metrics and visualizations.
+*   📁 **`models/`** 🧠: Root directory for saved model artifacts. (Gitignored).
+    *   📁 **`mnist_vit/`**: Contains subdirectories for trained MNIST ViT runs.
+        *   📁 **`<RUN_NAME>/`**: Subdirectory for each training run (e.g., `Phase1_...`, `Phase2_...`). Contains saved model weights (`.pth`), loss data (`.json`), and plots (`.png`).
 
-*   📁 **`notebooks/`** 📓: Location for Jupyter notebooks.
-    *   📄 **`01_mnist_vit_exploration.ipynb`**: Notebook for initial MNIST data loading, visualization, implementing/testing patching logic, and exploring basic ViT concepts.
-    *   📄 `(Optional) 02_phase2_data_generation.ipynb`, `03_phase3_design_ideas.ipynb`: Potential future notebooks for prototyping later phases.
+*   📁 **`notebooks/`** 📓: Jupyter notebooks for exploration, visualization, and design.
+    *   📄 **`01_mnist_vit_exploration.ipynb`**: Initial EDA, patching tests.
+    *   📄 **`02_phase2_results_viz.ipynb`**: Visualization of Phase 2 model predictions.
+    *   📄 **`03_phase3_design_ideas.ipynb`**: Brainstorming and planning for Phase 3.
 
-*   📁 **`scripts/`** ▶️: Contains the main executable Python scripts.
-    *   📄 **`train_mnist_vit.py`**: The primary script to orchestrate ViT model training. Handles different phases based on configuration or arguments, loads data, initializes model, calls the trainer, saves artifacts, logs to W&B.
-    *   📄 **`evaluate.py`**: Script to load a trained model checkpoint and evaluate its performance (e.g., accuracy) on the MNIST test set or phase-specific test data.
-    *   📄 `(Optional) generate_project_doc.py`: Utility to auto-generate documentation.
+*   📁 **`scripts/`** ▶️: Main executable Python scripts.
+    *   📄 **`train_mnist_vit.py`**: Primary script for training the ViT model. Handles different phases via `--phase` argument, loads config, data, model, runs training loop, saves results, logs to W&B.
+    *   📄 **`evaluate.py`**: Script to load a saved model checkpoint and evaluate its performance on the appropriate test set (Phase 1 or Phase 2/3).
+    *   📄 `(Optional) generate_project_doc.py`: Utility for auto-documentation.
 
-*   📁 **`src/`** 🐍: Contains the core source code organized into Python modules.
+*   📁 **`src/`** 🐍: Core source code modules.
     *   📄 **`__init__.py`**: Makes `src` a Python package.
-    *   📁 **`mnist_transformer/`** ✨: Core module implementing the Vision Transformer logic for MNIST.
+    *   📁 **`mnist_transformer/`** ✨: Core module for the ViT implementation.
         *   📄 **`__init__.py`**: Marks `mnist_transformer` as a sub-package.
-        *   📄 **`dataset.py`**: Contains functions and `Dataset` classes for loading standard MNIST (Phase 1), generating synthetic 2x2 grid data (Phase 2), and potentially handling dynamic layouts (Phase 3). Includes data transforms.
-        *   📄 **`modules.py`**: Defines the building blocks of the ViT: `PatchEmbedding`, `Attention` (Multi-Head Self-Attention), `MLPBlock`, `TransformerEncoderBlock`.
-        *   📄 **`model.py`**: Defines the main `VisionTransformer` nn.Module class, assembling the components from `modules.py` and adapting its input/output based on the project phase.
-        *   📄 **`trainer.py`**: Implements the training loop logic (`train_epoch`, `train_model`). Adapts the loss calculation and training steps for different phases (single output classification, multi-output classification, etc.).
-        *   📄 `(Optional) evaluation.py`: Functions for calculating specific metrics like overall accuracy, per-digit accuracy (Phase 2), etc.
+        *   📄 **`dataset.py`**: Handles data loading (`get_mnist_dataset`), transformations (`get_mnist_transforms`), Phase 2 grid generation (`generate_2x2_grid_image`, `MNISTGridDataset`), and potentially Phase 3 dynamic data generation.
+        *   📄 **`modules.py`**: Defines ViT building blocks: `PatchEmbedding`, `Attention` (custom MHA using `AttentionHead`), `MLPBlock`, `TransformerEncoderBlock`.
+        *   📄 **`model.py`**: Defines the main `VisionTransformer` class, assembling modules and adapting for different phases (input size, output heads).
+        *   📄 **`trainer.py`**: Implements the training (`train_epoch`) and evaluation (`evaluate_model`) loops. Adapts loss and accuracy calculation based on the training phase. Contains the main `train_model` orchestrator.
+        *   📄 `(Optional) evaluation.py`: Could hold specific metric functions if needed.
 
-*   📁 **`utils/`** 🛠️: Contains shared utility modules.
+*   📁 **`utils/`** 🛠️: Shared utility modules.
     *   📄 **`__init__.py`**: Marks `utils` as a package.
-    *   📄 **`device_setup.py`**: Function (`get_device`) for CPU/MPS/CUDA selection.
-    *   📄 **`logging.py`**: Configures the project logger (`Backprop Bunch`).
-    *   📄 **`run_utils.py`**: Helper functions (e.g., `load_config`, `save_losses`, `plot_losses`).
+    *   📄 **`device_setup.py`**: `get_device` function.
+    *   📄 **`logging.py`**: Configures the `Backprop Bunch` logger with colored console output.
+    *   📄 **`run_utils.py`**: Helper functions (`load_config`, `save_losses`, `plot_losses`).
 
-*   📁 **`wandb/`** ☁️: Local cache and log directory for Weights & Biases. (Gitignored).
-
-```
-
+*   📁 **`wandb/`** ☁️: Local W&B cache and logs. (Gitignored).
