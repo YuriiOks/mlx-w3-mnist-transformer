@@ -1,69 +1,81 @@
 # MNIST Digit Classifier (Vision Transformer) - Configuration
-# 
 # Copyright (c) 2025 Backprop Bunch Team (Yurii, Amy, Guillaume, Aygun)
+# File: config.yaml
+# Description: Configuration file for training a Vision Transformer on MNIST dataset.
 # Created: 2025-04-28
 # Updated: 2025-04-28 # <-- Update this date
 
 # --- General Paths ---
 paths:
-  model_save_dir: "models/mnist_vit"     # Directory to save trained ViT models
+  model_save_dir: "models/mnist_vit"     # Base directory for saving models
   log_dir: "logs"                        # Directory for log files
   log_file_name: "mnist_vit_train.log"   # Name for the main training log file
-  # data_dir: "data" # Optional: if you need to specify where MNIST is stored/downloaded
 
 # --- Dataset Parameters ---
 dataset:
   # Phase 1 (Single MNIST)
   image_size: 28
-  patch_size: 7         # Results in (28/7) * (28/7) = 4 * 4 = 16 patches
+  patch_size: 7         # (28/7)^2 = 16 patches
   num_classes: 10       # Digits 0-9
   in_channels: 1        # MNIST is grayscale
-  # Phase 2 (Grid - Placeholder)
-  # image_size_phase2: 56
-  # grid_size: 2 # 2x2 grid
-  # Phase 3 (Dynamic - Placeholder)
-  # image_size_phase3: 64 # Example
-  # max_digits: 5 # Example
-  # num_classes_phase3: 11 # 0-9 + empty token
+
+  # Phase 2 (Grid)
+  image_size_phase2: 56 # (56/7)^2 = 64 patches
+  # patch_size_phase2: 7 # Can optionally define if different, otherwise uses default patch_size
+  grid_size: 2          # 2x2 grid
+  num_outputs_phase2: 4 # Fixed 4 outputs
+
+  # --- Phase 3 (Dynamic Layout) - Placeholders ---
+  image_size_phase3: 64
+  patch_size_phase3: 8 # Example: (64/8)^2 = 64 patches/cells
+  max_digits_phase3: 5
+  num_classes_phase3: 11 # 0-9 + empty class
 
 # --- Vision Transformer Model Hyperparameters ---
+# --- Reflects the architecture used for Phase 1 & 2 training runs ---
 model:
-  # Configuration for a small ViT suitable for Phase 1
-  embed_dim: 64        # Embedding dimension (vector size for patches)
-  depth: 4             # Number of Transformer Encoder blocks
-  num_heads: 4         # Number of attention heads
-  mlp_ratio: 2.0       # Ratio of MLP hidden dim to embedding dim (e.g., 2.0 * 64 = 128)
-  dropout: 0.1         # Dropout rate for linear layers
-  attention_dropout: 0.1 # Dropout rate for attention weights
+  embed_dim: 64
+  depth: 4             # <<<--- CORRECTED TO 4 (Matches trained model)
+  num_heads: 4
+  mlp_ratio: 2.0
+  dropout: 0.1
+  attention_dropout: 0.1
 
 # --- Training Hyperparameters ---
 training:
-  # Phase 1
-  phase1_epochs: 20             # Number of training epochs for Phase 1
-  phase1_batch_size: 256        # Training batch size
-  phase1_base_lr: 1e-3          # Base learning rate (before warmup/decay)
-  phase1_warmup_epochs: 3       # Number of warmup epochs
-  phase1_weight_decay: 0.03     # Weight decay for AdamW
+  # Group phase-specific settings under sub-keys
+  phase1:
+    epochs: 15
+    batch_size: 256
+    base_lr: 1e-3
+    warmup_epochs: 0
+    weight_decay: 0.03
+  phase2:
+    epochs: 20           # Example default
+    batch_size: 128
+    base_lr: 5e-4
+    warmup_epochs: 2
+    weight_decay: 0.05
+  phase3: # Placeholders
+    epochs: 30
+    batch_size: 64
+    base_lr: 1e-4
+    warmup_epochs: 3
+    weight_decay: 0.05
 
-  # Placeholder for Phase 2/3 specific settings if needed later
-  # phase2_epochs: 30
-  # phase2_batch_size: 128
-  # phase2_base_lr: 5e-4
-  # phase2_warmup_epochs: 3
-  # phase2_weight_decay: 0.05
-
-  # General Optimizer Settings
-  optimizer: "AdamW"            # Could be Adam, AdamW, SGD etc.
-  # Scheduler settings can be added here if using one across phases
+  # General settings applicable potentially across phases
+  optimizer: "AdamW"
+  scheduler: "CosineAnnealingLR" # If used consistently
+  gradient_clipping: 1.0         # Example value
 
 # --- Evaluation Parameters ---
 evaluation:
-  batch_size: 512              # Batch size for evaluation/testing
+  batch_size: 512
 
-# --- Logging Configuration (Can reuse from W2) ---
+# --- Logging Configuration ---
 logging:
   log_level: "INFO"
   log_file_enabled: True
   log_console_enabled: True
-  log_max_bytes: 10485760      # 10 MB
+  log_max_bytes: 10485760
   log_backup_count: 5
