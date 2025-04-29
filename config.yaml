@@ -1,62 +1,61 @@
 # MNIST Digit Classifier (Vision Transformer) - Configuration
 # Copyright (c) 2025 Backprop Bunch Team (Yurii, Amy, Guillaume, Aygun)
 # File: config.yaml
-# Description: Configuration file for training ViT on MNIST (All Phases).
+# Description: Configuration file for training ViT on MNIST (All Phases - PyTorch).
 # Created: 2025-04-28
-# Updated: 2025-04-29 # <-- Updated Date
+# Updated: 2025-04-29
 
 # --- General Paths ---
 paths:
   model_save_dir: "models/mnist_vit"     # Base directory for saving models
   log_dir: "logs"                        # Directory for log files
   log_file_name: "mnist_vit_train.log"   # Name for the main training log file
-  # data_dir: "data"                     # Optional: specify MNIST storage location
+  data_dir: "data"                     # Explicitly define data directory
 
 # --- Tokenizer Configuration (for Phase 3 Decoder) ---
 tokenizer:
   pad_token_id: 0
   start_token_id: 1
   end_token_id: 2
-  digit_offset: 3  # Digits 0-9 map to IDs 3-12
+  digit_offset: 3
   vocab_size: 13   # 10 digits + pad + start + end
 
 # --- Dataset Parameters ---
 dataset:
   # Phase 1 (Single MNIST)
   image_size: 28
-  patch_size: 7
-  num_classes: 10 # Classes per actual digit (used by P1 head)
+  patch_size: 7         # Used for P1/P2 Encoder
+  num_classes: 10       # Used for P1/P2 head & P3 decoder head (digits only)
   in_channels: 1
 
   # Phase 2 (Grid)
   image_size_phase2: 56
-  # patch_size_phase2: 7 # Default uses patch_size from P1/P3 if not specified
-  grid_size: 2          # 2x2 grid
-  num_outputs_phase2: 4 # Fixed 4 outputs (used by P2 head)
+  # patch_size_phase2: 7 # Inherits patch_size if not defined
+  grid_size: 2
+  num_outputs_phase2: 4 # Used by P2 model/trainer
 
   # Phase 3 (Dynamic Layout - Sequence Generation)
-  image_size_phase3: 256
-  patch_size_phase3: 8 # (64/8)^2 = 64 patches/cells
-  max_digits_phase3: 17 # Max digits to generate in an image
-  max_seq_len: 20      # Max output sequence length (max_digits + start + end + buffer)
-  num_classes_phase3: 11 # Used only for loss weighting calculation? Decoder uses tokenizer.vocab_size
+  image_size_phase3: 64  # Canvas size
+  patch_size_phase3: 8   # Patch size for P3 encoder -> (64/8)^2 = 64 patches
+  max_digits_phase3: 7   # Max digits to generate in an image
+  max_seq_len: 10        # Max output sequence length (max_digits + start + end + buffer)
+  # num_classes_phase3 is implicitly tokenizer.vocab_size for the decoder output layer
 
 # --- Vision Transformer Model Hyperparameters ---
-# --- Define baseline/default architecture params ---
 model:
-  embed_dim: 64
-  depth: 4             # Encoder depth used for P1/P2
-  num_heads: 4
-  mlp_ratio: 2.0
-  dropout: 0.1         # General dropout
+  # Encoder (used by all phases, potentially with different patch size for P3)
+  embed_dim: 64          # Main embedding dimension
+  depth: 4               # Encoder depth
+  num_heads: 4           # Encoder heads
+  mlp_ratio: 2.0         # Encoder MLP expansion ratio
+  dropout: 0.1           # General dropout
   attention_dropout: 0.1 # Attention-specific dropout
 
-  # --- Phase 3 specific additions (Encoder-Decoder) ---
-  encoder_depth_phase3: 4 # Can reuse 'depth' or define separately
-  decoder_depth: 4        # Number of Decoder blocks
-  decoder_num_heads: 4    # Heads in Decoder Masked Self-Attn & Cross-Attn
-  decoder_mlp_ratio: 2.0  # MLP ratio in Decoder blocks
-  decoder_embed_dim: 64   # Embedding dim for decoder inputs (often same as encoder)
+  # Decoder (Used only in Phase 3)
+  decoder_depth: 4
+  decoder_num_heads: 4
+  decoder_mlp_ratio: 2.0
+  decoder_embed_dim: 64 # Often same as encoder embed_dim
 
 # --- Training Hyperparameters ---
 training:
@@ -65,7 +64,7 @@ training:
     epochs: 15
     batch_size: 256
     base_lr: 1e-3
-    warmup_epochs: 0
+    warmup_epochs: 0 # Keep simple for now
     weight_decay: 0.03
   # Phase 2
   phase2:
@@ -76,21 +75,21 @@ training:
     weight_decay: 0.05
   # Phase 3
   phase3:
-    epochs: 30             # Likely needs more training
-    batch_size: 64
-    base_lr: 1e-4
+    epochs: 30           # Might need more
+    batch_size: 64       # Smaller batch often better for Seq2Seq
+    base_lr: 1e-4        # Lower LR typically needed
     warmup_epochs: 3
     weight_decay: 0.05
-    loss_empty_class_weight: 0.2 # Optional: Weight for empty class in Phase 3 loss
+    # loss_empty_class_weight: 0.2 # Not needed if using ignore_index
 
   # General settings
   optimizer: "AdamW"
-  scheduler: "CosineAnnealingLR" # Example, if using consistently
-  gradient_clipping: 1.0
+  scheduler: "CosineAnnealingLR" # Example scheduler type
+  gradient_clipping: 1.0         # Recommended for transformers
 
 # --- Evaluation Parameters ---
 evaluation:
-  batch_size: 512              # Default eval batch size
+  batch_size: 512              # Default eval batch size (adjust per phase if needed)
 
 # --- Logging Configuration ---
 logging:
