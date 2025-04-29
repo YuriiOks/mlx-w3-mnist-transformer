@@ -57,7 +57,9 @@ class PatchEmbedding(nn.Module):
         self.embed_dim = embed_dim
 
         if image_size % patch_size != 0:
-            raise ValueError("Image dimensions must be divisible by patch_size.")
+            raise ValueError(
+                "Image dimensions must be divisible by patch_size."
+            )
 
         self.num_patches = (image_size // patch_size) ** 2
         self.patch_dim = in_channels * patch_size * patch_size
@@ -197,26 +199,29 @@ class TransformerEncoderBlock(nn.Module):
     Standard Transformer Encoder block (PyTorch).
     """
     def __init__(
-        self, embed_dim=64, num_heads=4, mlp_ratio=2.0, dropout=0.1
+        self, embed_dim=64, num_heads=4, mlp_ratio=2.0,
+        attention_dropout=0.1, mlp_dropout=0.1
     ):
         super().__init__()
         self.norm1 = nn.LayerNorm(embed_dim)
         self.attention = Attention(
             embed_dim=embed_dim,
             num_heads=num_heads,
-            dropout=dropout
+            dropout=attention_dropout
         )
         self.norm2 = nn.LayerNorm(embed_dim)
         self.mlp = MLPBlock(
             embed_dim=embed_dim,
             mlp_ratio=mlp_ratio,
-            dropout=dropout
+            dropout=mlp_dropout
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         residual = x
         x_norm = self.norm1(x)
-        attn_out = self.attention(query=x_norm, key=x_norm, value=x_norm)
+        attn_out = self.attention(
+            query=x_norm, key=x_norm, value=x_norm
+        )
         x = residual + attn_out
         residual = x
         x_norm = self.norm2(x)
@@ -296,7 +301,7 @@ if __name__ == '__main__':
     causal_mask = torch.tril(torch.ones(_S_tgt, _S_tgt))
     logger.info("\n--- Testing Encoder Block ---")
     encoder_block = TransformerEncoderBlock(
-        embed_dim=_D, num_heads=_H, dropout=0.1
+        embed_dim=_D, num_heads=_H, attention_dropout=0.1, mlp_dropout=0.1
     )
     encoder_output = encoder_block(encoder_input)
     logger.info(f"Encoder Block Output Shape: {encoder_output.shape}")
