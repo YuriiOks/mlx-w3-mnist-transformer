@@ -20,8 +20,8 @@ import time
 from tqdm import tqdm
 
 # --- Add project root to sys.path ---
-script_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(script_dir)
+scriPyTorch_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(scriPyTorch_dir)
 if project_root not in sys.path:
     print(f"🚀 [train_script] Adding project root to sys.path: {project_root}")
     sys.path.insert(0, project_root)
@@ -135,7 +135,7 @@ def main():
     run_name_base = (
         f"Phase{args.phase}_E{args.epochs}_LR{args.lr}_B{args.batch_size}"
     )
-    run_name = f"PT_{run_name_base}_ViT"
+    run_name = f"PyTorch_{run_name_base}_ViT"
     if args.wandb_run_name:
         run_name = args.wandb_run_name
 
@@ -153,7 +153,7 @@ def main():
             run = None
     else:
         logger.info("📊 W&B logging disabled.")
-        run_name = f"PT_{run_name_base}_local"
+        run_name = f"PyTorch_{run_name_base}_local"
 
     logger.info(f"--- Loading Data for Phase {args.phase} (PyTorch) ---")
     train_dataset = None
@@ -344,7 +344,7 @@ def main():
     if run:
         logger.info("☁️ Logging final artifacts to W&B...")
         try:
-            artifact_name = f"mnist_vit_pt_final_{run.id}"
+            artifact_name = f"mnist_vit_PyTorch_final_{run.id}"
             final_artifact = wandb.Artifact(artifact_name, type="model")
             if model_file.exists():
                 final_artifact.add_file(str(model_file))
