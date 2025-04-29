@@ -1,20 +1,20 @@
-# MNIST Digit Classifier (Transformer)
+# MNIST Digit Classifier (Transformer) - PyTorch Version
 # File: src/mnist_transformer/model.py
 # Copyright (c) 2025 Backprop Bunch Team (Yurii, Amy, Guillaume, Aygun)
-# Description: Defines the Vision Transformer (ViT) model architecture.
+# Description: Defines ViT Encoder & Encoder-Decoder model architectures.
 # Created: 2025-04-28
-# Updated: 2025-04-28
+# Updated: 2025-04-29
 
 import torch
 import torch.nn as nn
 import os
 import sys
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
-# --- Add project root to sys.path for imports ---
+# --- Add project root for imports ---
 script_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = Path(script_dir).parent.parent # Go up two levels
+project_root = Path(script_dir).parent.parent
 if str(project_root) not in sys.path:
     print(f"🏗️ [model.py] Adding project root to sys.path: {project_root}")
     sys.path.insert(0, str(project_root))
@@ -24,244 +24,247 @@ try:
     from src.mnist_transformer.modules import (
         PatchEmbedding,
         TransformerEncoderBlock,
+        TransformerDecoderBlock
     )
-    from utils import logger # Optional: if logging needed within the model
+    from utils import logger
 except ImportError as e:
-     print(f"❌ Error importing modules in model.py: {e}")
-     print("   Ensure you are running from project root or paths are set.")
-     # Define dummy classes if import fails
-     PatchEmbedding = nn.Module
-     TransformerEncoderBlock = nn.Module
-     logger = None
+    print(f"❌ Error importing modules in model.py: {e}")
+    PatchEmbedding = nn.Module
+    TransformerEncoderBlock = nn.Module
+    TransformerDecoderBlock = nn.Module
+    import logging
+    logger = logging.getLogger(__name__)
 
-# --- Vision Transformer Model ---
-
+# --- Phase 1 & 2: Vision Transformer (Encoder Only) ---
 class VisionTransformer(nn.Module):
-    """
-    Vision Transformer (ViT) model for image classification.
-    Adapts for single digit (Phase 1) or multi-digit grid (Phase 2).
-
-    Args:
-        img_size (int): Size of the input image (assumed square).
-        patch_size (int): Size of each square patch.
-        in_channels (int): Number of input image channels.
-        num_classes (int): Number of classes *per output head*.
-            (e.g., 10 for MNIST digits).
-        embed_dim (int): Dimensionality of the token/patch embeddings.
-        depth (int): Number of transformer encoder layers.
-        num_heads (int): Number of attention heads.
-        mlp_ratio (float): Ratio of MLP hidden dim to embedding dim.
-        attention_dropout (float): Dropout rate for attention weights.
-        mlp_dropout (float): Dropout rate for MLP layers.
-        num_outputs (int): Number of separate classification outputs needed
-            (1 for Phase 1, 4 for Phase 2). Default 1.
-    """
+    """ Vision Transformer (ViT) for image classification (Phases 1 & 2). """
     def __init__(
-        self,
-        img_size: int, # Required: e.g., 28 for P1, 56 for P2
-        patch_size: int,
-        in_channels: int,
-        num_classes: int, # Classes per digit (e.g., 10)
-        embed_dim: int,
-        depth: int,
-        num_heads: int,
-        mlp_ratio: float,
-        attention_dropout: float = 0.1,
-        mlp_dropout: float = 0.1,
-        num_outputs: int = 1, # <-- ADDED: Number of digits to predict
+        self, img_size: int, patch_size: int, in_channels: int, num_classes: int,
+        embed_dim: int, depth: int, num_heads: int, mlp_ratio: float,
+        # --- Use single dropout value ---
+        dropout: float = 0.1, # Single dropout arg
+        num_outputs: int = 1,
     ):
         super().__init__()
         self.num_classes = num_classes
         self.num_outputs = num_outputs
         self.embed_dim = embed_dim
-        self.depth = depth
-        self.num_heads = num_heads
 
-        # 1. Patch + Position Embedding (+ CLS Token)
-        # Pass the correct img_size received from arguments
         self.patch_embed = PatchEmbedding(
-            image_size=img_size, # Use argument
-            patch_size=patch_size,
-            in_channels=in_channels,
-            embed_dim=embed_dim
+            img_size, patch_size, in_channels, embed_dim
         )
-        self.num_patches = self.patch_embed.num_patches
-
-        # 2. Transformer Encoder Blocks
         self.encoder_blocks = nn.ModuleList([
             TransformerEncoderBlock(
-                embed_dim=embed_dim,
-                num_heads=num_heads,
-                mlp_ratio=mlp_ratio,
-                attention_dropout=attention_dropout,
-                mlp_dropout=mlp_dropout,
+                embed_dim,
+                num_heads,
+                mlp_ratio,
+                dropout # <-- Pass the single dropout value
             )
             for _ in range(depth)])
-
-        # 3. Final Layer Normalization (applied before MLP head)
-        # --- 👇 Correct Assignment ---
-        self.norm = nn.LayerNorm(embed_dim) # Assign to self.norm
-
-        # 4. MLP Classifier Head
-        # Output dimension depends on the number of digits we want to predict
-        # Output size = num_outputs * num_classes (e.g., 4 * 10 = 40 for P2)
-        head_output_dim = num_classes * num_outputs
-        self.head = nn.Linear(embed_dim, head_output_dim) # <-- MODIFIED
-
-        # Initialize weights
+        self.norm = nn.LayerNorm(embed_dim)
+        self.head = nn.Linear(embed_dim, num_classes * num_outputs)
         self._initialize_weights()
-
         if logger:
-            log_msg = (
-                f"🧠 ViT initialized: img={img_size}, patch={patch_size}, "
-                f"depth={depth}, heads={num_heads}, embed={embed_dim}, "
-                f"outputs={num_outputs}"
+            logger.info(
+                f"🧠 VisionTransformer initialized: img={img_size}, "
+                f"patch={patch_size}, depth={depth}, heads={num_heads}, "
+                f"embed={embed_dim}, outputs={num_outputs}"
             )
-            logger.info(log_msg)
 
     def _initialize_weights(self):
-        # ... (initialization code remains the same) ...
         for m in self.modules():
             if isinstance(m, nn.Linear):
                 nn.init.xavier_uniform_(m.weight)
-                if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
+                nn.init.constant_(m.bias, 0)
             elif isinstance(m, nn.LayerNorm):
                 nn.init.constant_(m.bias, 0)
                 nn.init.constant_(m.weight, 1.0)
-        nn.init.trunc_normal_(self.patch_embed.position_embedding, std=.02)
-        nn.init.trunc_normal_(self.patch_embed.cls_token, std=.02)
+        if hasattr(self, 'patch_embed'):
+            nn.init.trunc_normal_(self.patch_embed.position_embedding, std=.02)
+            nn.init.trunc_normal_(self.patch_embed.cls_token, std=.02)
 
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Forward pass of the Vision Transformer.
-
-        Args:
-            x (torch.Tensor): Input image batch (Batch, C, H, W).
-
-        Returns:
-            torch.Tensor: Logits output. Shape depends on num_outputs:
-                          - If num_outputs=1: (Batch, NumClasses)
-                          - If num_outputs>1: (Batch, NumOutputs, NumClasses)
-                            # Reshaped for clarity
-        """
-        # 1. Get Patch Embeddings + CLS token + Positional Embeddings
-        x = self.patch_embed(x) # (B, N+1, D)
-
-        # 2. Pass through Transformer Encoder Blocks
+    def get_encoder_features(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.patch_embed(x)
         for block in self.encoder_blocks:
             x = block(x)
+        return x
 
-        # 3. Apply final Layer Normalization to the CLS token output
-        cls_token_output = x[:, 0] # Select CLS token -> (B, D)
-        cls_token_output = self.norm(cls_token_output)
-
-        # 4. Pass CLS token output through MLP Head
-        logits = self.head(cls_token_output) # (B, NumOutputs * NumClasses)
-
-        # 5. Reshape if multiple outputs for clarity and easier loss calc
-        # Reshape from (B, NumOutputs * NumClasses) to
-        # (B, NumOutputs, NumClasses)
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.get_encoder_features(x)
+        cls_token_output = self.norm(x[:, 0])
+        logits = self.head(cls_token_output)
         if self.num_outputs > 1:
             logits = logits.view(
                 x.shape[0], self.num_outputs, self.num_classes
-            ) # <-- RESHAPE ADDED
+            )
+        return logits
 
+# --- 👇 NEW: Phase 3 - Encoder-Decoder Vision Transformer ---
+class EncoderDecoderViT(nn.Module):
+    """
+    Encoder-Decoder Vision Transformer for sequence generation (Phase 3).
+    """
+    def __init__(
+        self,
+        img_size: int, patch_size: int, in_channels: int,
+        encoder_embed_dim: int, encoder_depth: int, encoder_num_heads: int,
+        decoder_vocab_size: int, decoder_embed_dim: int, decoder_depth: int,
+        decoder_num_heads: int, mlp_ratio: float = 2.0, dropout: float = 0.1,
+        attention_dropout: float = 0.1,
+    ):
+        super().__init__()
+        self.decoder_vocab_size = decoder_vocab_size
+
+        # 1. Encoder Part
+        self.patch_embed = PatchEmbedding(
+            img_size, patch_size, in_channels, encoder_embed_dim
+        )
+        self.encoder_blocks = nn.ModuleList([
+            TransformerEncoderBlock(
+                encoder_embed_dim, encoder_num_heads, mlp_ratio,
+                attention_dropout, dropout
+            )
+            for _ in range(encoder_depth)
+        ])
+        self.encoder_norm = nn.LayerNorm(encoder_embed_dim)
+
+        # 2. Decoder Part
+        self.decoder_embed = nn.Embedding(
+            decoder_vocab_size, decoder_embed_dim
+        )
+        self.max_seq_len = 10
+        self.decoder_pos_embed = nn.Parameter(
+            torch.zeros(1, self.max_seq_len, decoder_embed_dim)
+        )
+        self.decoder_blocks = nn.ModuleList([
+            TransformerDecoderBlock(
+                decoder_embed_dim, decoder_num_heads, mlp_ratio, dropout
+            )
+            for _ in range(decoder_depth)
+        ])
+        self.output_head = nn.Linear(decoder_embed_dim, decoder_vocab_size)
+
+        self._initialize_weights()
+        if logger:
+            logger.info(
+                f"🧠 EncoderDecoderViT initialized: EncDepth={encoder_depth}, "
+                f"DecDepth={decoder_depth}"
+            )
+
+    def _initialize_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_uniform_(m.weight)
+                nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.LayerNorm):
+                nn.init.constant_(m.bias, 0)
+                nn.init.constant_(m.weight, 1.0)
+            elif isinstance(m, nn.Embedding):
+                nn.init.trunc_normal_(m.weight, std=.02)
+        if hasattr(self, 'patch_embed'):
+            nn.init.trunc_normal_(self.patch_embed.position_embedding, std=.02)
+            nn.init.trunc_normal_(self.patch_embed.cls_token, std=.02)
+        if hasattr(self, 'decoder_pos_embed'):
+            nn.init.trunc_normal_(self.decoder_pos_embed, std=.02)
+
+    def encode(self, src_img: torch.Tensor) -> torch.Tensor:
+        x = self.patch_embed(src_img)
+        for block in self.encoder_blocks:
+            x = block(x)
+        memory = self.encoder_norm(x)
+        return memory
+
+    def decode(
+        self, tgt_seq: torch.Tensor, memory: torch.Tensor,
+        tgt_mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        B, T = tgt_seq.shape
+        tgt_embed = self.decoder_embed(tgt_seq)
+        pos_embed = self.decoder_pos_embed[:, :T]
+        x = tgt_embed + pos_embed
+        for block in self.decoder_blocks:
+            x = block(tgt=x, memory=memory, tgt_mask=tgt_mask)
+        logits = self.output_head(x)
+        return logits
+
+    def forward(
+        self, src_img: torch.Tensor, tgt_seq: torch.Tensor
+    ) -> torch.Tensor:
+        memory = self.encode(src_img)
+        tgt_len = tgt_seq.size(1)
+        causal_mask = torch.tril(
+            torch.ones(tgt_len, tgt_len, device=tgt_seq.device, dtype=torch.bool)
+        )
+        logits = self.decode(tgt_seq, memory, tgt_mask=causal_mask)
         return logits
 
 # --- Test Block ---
 if __name__ == '__main__':
     if logger:
-        logger.info("🧪 Testing VisionTransformer Model (P1 & P2)...")
+        logger.info("🧪 Testing PyTorch Model Architectures...")
 
-    # --- Test Phase 1 Config ---
-    logger.info("\n--- Testing Phase 1 Configuration ---")
-    p1_batch_size = 4
-    p1_img_size = 28
-    p1_patch_size = 7
-    p1_in_channels = 1
-    p1_num_classes = 10
-    p1_embed_dim = 64
-    p1_depth = 4
-    p1_num_heads = 4
-    p1_num_outputs = 1 # Single digit output
-    p1_mlp_ratio = 2.0 # <-- You need to define this variable
+    # --- Test Phase 1/2 ViT ---
+    logger.info("\n--- Testing VisionTransformer (Phase 1/2) ---")
+    _mlp_ratio = 2.0
 
-    p1_dummy_images = torch.randn(
-        p1_batch_size, p1_in_channels, p1_img_size, p1_img_size
+    p1_model = VisionTransformer(
+        img_size=28, patch_size=7, in_channels=1, num_classes=10,
+        embed_dim=64, depth=4, num_heads=4,
+        mlp_ratio=_mlp_ratio, # <-- ADDED HERE
+        num_outputs=1
     )
-    if logger: logger.info(f"Phase 1 Input shape: {p1_dummy_images.shape}")
+    p1_input = torch.randn(4, 1, 28, 28)
+    p1_output = p1_model(p1_input)
+    logger.info(f"Phase 1 Output Shape: {p1_output.shape}")
+    assert p1_output.shape == (4, 10)
 
-    p1_vit_model = VisionTransformer(
-        img_size=p1_img_size,
-        patch_size=p1_patch_size,
-        in_channels=p1_in_channels,
-        num_classes=p1_num_classes,
-        embed_dim=p1_embed_dim,
-        depth=p1_depth,
-        num_heads=p1_num_heads,
-        num_outputs=p1_num_outputs,
-        mlp_ratio=p1_mlp_ratio
+    p2_model = VisionTransformer(
+        img_size=56, patch_size=7, in_channels=1, num_classes=10,
+        embed_dim=64, depth=4, num_heads=4, mlp_ratio=_mlp_ratio,
+
+        num_outputs=4
     )
+    p2_input = torch.randn(2, 1, 56, 56)
+    p2_output = p2_model(p2_input)
+    logger.info(f"Phase 2 Output Shape: {p2_output.shape}")
+    assert p2_output.shape == (2, 4, 10)
+    logger.info("✅ VisionTransformer tests passed.")
 
-    try:
-        p1_output_logits = p1_vit_model(p1_dummy_images)
-        if logger: logger.info(f"✅ Phase 1 Model Forward Pass Successful!")
-        if logger:
-            logger.info(f"Phase 1 Output logits shape: {p1_output_logits.shape}")
-        expected_p1_shape = (p1_batch_size, p1_num_classes)
-        assert p1_output_logits.shape == expected_p1_shape, \
-            f"Phase 1 Output shape mismatch! Got {p1_output_logits.shape}, " \
-            f"expected {expected_p1_shape}"
-    except Exception as e:
-        if logger:
-            logger.error(f"❌ Error during Phase 1 model test: {e}",
-                         exc_info=True)
+    # --- Test Phase 3 EncoderDecoderViT ---
+    logger.info("\n--- Testing EncoderDecoderViT (Phase 3) ---")
+    _B = 2
+    _S_tgt = 10
+    _V_dec = 13
+    _img_size = 64
+    _patch_size = 8
+    _in_channels = 1
+    _enc_D = 64
+    _enc_depth = 4
+    _enc_H = 4
+    _dec_D = 64
+    _dec_depth = 4
+    _dec_H = 4
 
+    p3_img_input = torch.randn(_B, _in_channels, _img_size, _img_size)
+    p3_tgt_input = torch.randint(0, _V_dec, (_B, _S_tgt - 1))
 
-    # --- Test Phase 2 Config ---
-    logger.info("\n--- Testing Phase 2 Configuration ---")
-    p2_batch_size = 2 # Smaller batch for potentially larger model
-    p2_img_size = 56 # 2x2 grid
-    p2_patch_size = 7 # Keep patch size same? Or change? Keep 7 (-> 64)
-    p2_in_channels = 1
-    p2_num_classes = 10 # Still 10 digits per output
-    p2_embed_dim = 64 # Keep embed_dim same
-    p2_depth = 4 # Keep depth same
-    p2_num_heads = 4 # Keep heads same
-    p2_num_outputs = 4 # Predict 4 digits
-    p2_mlp_ratio = 2.0 # Define mlp_ratio for phase 2
-
-
-    p2_dummy_images = torch.randn(
-        p2_batch_size, p2_in_channels, p2_img_size, p2_img_size
-    )
-    if logger: logger.info(f"Phase 2 Input shape: {p2_dummy_images.shape}")
-
-    p2_vit_model = VisionTransformer(
-        img_size=p2_img_size,
-        patch_size=p2_patch_size,
-        in_channels=p2_in_channels,
-        num_classes=p2_num_classes,
-        embed_dim=p2_embed_dim,
-        depth=p2_depth,
-        num_heads=p2_num_heads,
-        num_outputs=p2_num_outputs,
-        mlp_ratio=p2_mlp_ratio,
+    p3_model = EncoderDecoderViT(
+        img_size=_img_size, patch_size=_patch_size, in_channels=_in_channels,
+        encoder_embed_dim=_enc_D, encoder_depth=_enc_depth,
+        encoder_num_heads=_enc_H, decoder_vocab_size=_V_dec,
+        decoder_embed_dim=_dec_D, decoder_depth=_dec_depth,
+        decoder_num_heads=_dec_H
     )
 
     try:
-        p2_output_logits = p2_vit_model(p2_dummy_images)
-        if logger: logger.info(f"✅ Phase 2 Model Forward Pass Successful!")
-        if logger:
-            # Expected: (Batch, NumOutputs, NumClasses)
-            logger.info(f"Phase 2 Output logits shape: {p2_output_logits.shape}")
-        expected_p2_shape = (p2_batch_size, p2_num_outputs, p2_num_classes)
-        assert p2_output_logits.shape == expected_p2_shape, \
-            f"Phase 2 Output shape mismatch! Got {p2_output_logits.shape}, " \
-            f"expected {expected_p2_shape}"
+        output_logits = p3_model(p3_img_input, p3_tgt_input)
+        logger.info(f"✅ Phase 3 Model Forward Pass Successful!")
+        logger.info(
+            f"Phase 3 Output logits shape: {output_logits.shape}"
+        )
+        assert output_logits.shape == (_B, _S_tgt - 1, _V_dec)
+        logger.info("✅ EncoderDecoderViT test passed.")
     except Exception as e:
-        if logger:
-            logger.error(f"❌ Error during Phase 2 model test: {e}",
-                         exc_info=True)
+        logger.error(
+            f"❌ Error during Phase 3 model test: {e}", exc_info=True
+        )
