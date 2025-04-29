@@ -12,14 +12,19 @@ from .logging import logger
 from .device_setup import get_device
 
 # Import utility functions from run_utils.py
-from .run_utils import load_config, format_num_words, format_num_words, plot_losses, save_losses
+from .run_utils import (
+    load_config,
+    format_num_words, # Keep only one
+    save_metrics,     # New function
+    plot_metrics      # New function
+)
 
 # Import the tokenizer utility functions from tokenizer_utils.py
 from .tokenizer_utils import labels_to_sequence, sequence_to_labels
 
 # Define what gets imported with 'from utils import *'
-__all__ = ['logger', 'get_device', 'load_config', 
-           'format_num_words', 'save_losses', 'plot_losses',
+__all__ = ['logger', 'get_device', 'load_config',
+           'format_num_words', 'save_metrics', 'plot_metrics',
            'labels_to_sequence', 'sequence_to_labels']
 
 # Optional: Log that the package is being initialized
