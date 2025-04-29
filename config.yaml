@@ -1,76 +1,96 @@
 # MNIST Digit Classifier (Vision Transformer) - Configuration
 # Copyright (c) 2025 Backprop Bunch Team (Yurii, Amy, Guillaume, Aygun)
 # File: config.yaml
-# Description: Configuration file for training a Vision Transformer on MNIST dataset.
+# Description: Configuration file for training ViT on MNIST (All Phases).
 # Created: 2025-04-28
-# Updated: 2025-04-28 # <-- Update this date
+# Updated: 2025-04-29 # <-- Updated Date
 
 # --- General Paths ---
 paths:
   model_save_dir: "models/mnist_vit"     # Base directory for saving models
   log_dir: "logs"                        # Directory for log files
   log_file_name: "mnist_vit_train.log"   # Name for the main training log file
+  # data_dir: "data"                     # Optional: specify MNIST storage location
+
+# --- Tokenizer Configuration (for Phase 3 Decoder) ---
+tokenizer:
+  pad_token_id: 0
+  start_token_id: 1
+  end_token_id: 2
+  digit_offset: 3  # Digits 0-9 map to IDs 3-12
+  vocab_size: 13   # 10 digits + pad + start + end
 
 # --- Dataset Parameters ---
 dataset:
   # Phase 1 (Single MNIST)
   image_size: 28
-  patch_size: 7         # (28/7)^2 = 16 patches
-  num_classes: 10       # Digits 0-9
-  in_channels: 1        # MNIST is grayscale
+  patch_size: 7
+  num_classes: 10 # Classes per actual digit (used by P1 head)
+  in_channels: 1
 
   # Phase 2 (Grid)
-  image_size_phase2: 56 # (56/7)^2 = 64 patches
-  # patch_size_phase2: 7 # Can optionally define if different, otherwise uses default patch_size
+  image_size_phase2: 56
+  # patch_size_phase2: 7 # Default uses patch_size from P1/P3 if not specified
   grid_size: 2          # 2x2 grid
-  num_outputs_phase2: 4 # Fixed 4 outputs
+  num_outputs_phase2: 4 # Fixed 4 outputs (used by P2 head)
 
-  # --- Phase 3 (Dynamic Layout) - Placeholders ---
+  # Phase 3 (Dynamic Layout - Sequence Generation)
   image_size_phase3: 64
-  patch_size_phase3: 8 # Example: (64/8)^2 = 64 patches/cells
-  max_digits_phase3: 5
-  num_classes_phase3: 11 # 0-9 + empty class
+  patch_size_phase3: 8 # (64/8)^2 = 64 patches/cells
+  max_digits_phase3: 7 # Max digits to generate in an image
+  max_seq_len: 10      # Max output sequence length (max_digits + start + end + buffer)
+  num_classes_phase3: 11 # Used only for loss weighting calculation? Decoder uses tokenizer.vocab_size
 
 # --- Vision Transformer Model Hyperparameters ---
-# --- Reflects the architecture used for Phase 1 & 2 training runs ---
+# --- Define baseline/default architecture params ---
 model:
   embed_dim: 64
-  depth: 4             # <<<--- CORRECTED TO 4 (Matches trained model)
+  depth: 4             # Encoder depth used for P1/P2
   num_heads: 4
   mlp_ratio: 2.0
-  dropout: 0.1
-  attention_dropout: 0.1
+  dropout: 0.1         # General dropout
+  attention_dropout: 0.1 # Attention-specific dropout
+
+  # --- Phase 3 specific additions (Encoder-Decoder) ---
+  encoder_depth_phase3: 4 # Can reuse 'depth' or define separately
+  decoder_depth: 4        # Number of Decoder blocks
+  decoder_num_heads: 4    # Heads in Decoder Masked Self-Attn & Cross-Attn
+  decoder_mlp_ratio: 2.0  # MLP ratio in Decoder blocks
+  decoder_embed_dim: 64   # Embedding dim for decoder inputs (often same as encoder)
 
 # --- Training Hyperparameters ---
 training:
-  # Group phase-specific settings under sub-keys
+  # Phase 1
   phase1:
     epochs: 15
     batch_size: 256
     base_lr: 1e-3
     warmup_epochs: 0
     weight_decay: 0.03
+  # Phase 2
   phase2:
-    epochs: 20           # Example default
+    epochs: 20
     batch_size: 128
     base_lr: 5e-4
     warmup_epochs: 2
     weight_decay: 0.05
-  phase3: # Placeholders
-    epochs: 30
+  # Phase 3
+  phase3:
+    epochs: 30             # Likely needs more training
     batch_size: 64
     base_lr: 1e-4
     warmup_epochs: 3
     weight_decay: 0.05
+    loss_empty_class_weight: 0.2 # Optional: Weight for empty class in Phase 3 loss
 
-  # General settings applicable potentially across phases
+  # General settings
   optimizer: "AdamW"
-  scheduler: "CosineAnnealingLR" # If used consistently
-  gradient_clipping: 1.0         # Example value
+  scheduler: "CosineAnnealingLR" # Example, if using consistently
+  gradient_clipping: 1.0
 
 # --- Evaluation Parameters ---
 evaluation:
-  batch_size: 512
+  batch_size: 512              # Default eval batch size
 
 # --- Logging Configuration ---
 logging:
