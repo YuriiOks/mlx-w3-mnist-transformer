@@ -35,10 +35,10 @@ dataset:
   num_outputs_phase2: 4 # Fixed 4 outputs (used by P2 head)
 
   # Phase 3 (Dynamic Layout - Sequence Generation)
-  image_size_phase3: 64
+  image_size_phase3: 256
   patch_size_phase3: 8 # (64/8)^2 = 64 patches/cells
-  max_digits_phase3: 7 # Max digits to generate in an image
-  max_seq_len: 10      # Max output sequence length (max_digits + start + end + buffer)
+  max_digits_phase3: 17 # Max digits to generate in an image
+  max_seq_len: 20      # Max output sequence length (max_digits + start + end + buffer)
   num_classes_phase3: 11 # Used only for loss weighting calculation? Decoder uses tokenizer.vocab_size
 
 # --- Vision Transformer Model Hyperparameters ---
