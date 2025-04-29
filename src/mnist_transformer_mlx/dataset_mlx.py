@@ -133,23 +133,27 @@ class MNISTGridDatasetMLX:
         return self.length
 
     def __getitem__(self, idx):
-        np_indices = np.random.choice(self.num_base, 4, replace=False)
-        mlx_indices = mx.array(np_indices)
-        images = self.base_images_mlx[mlx_indices]
-        labels = self.base_labels_mlx[mlx_indices]
-        grid_image = mx.zeros(
-            (self.grid_size, self.grid_size, 1), dtype=images.dtype
-        )
-        images_np = [np.array(img) for img in images]
-        grid_image_np = np.zeros(
-            (self.grid_size, self.grid_size, 1), dtype=np.float32
-        )
-        grid_image_np[0:28, 0:28, :] = images_np[0]
-        grid_image_np[0:28, 28:56, :] = images_np[1]
-        grid_image_np[28:56, 0:28, :] = images_np[2]
-        grid_image_np[28:56, 28:56, :] = images_np[3]
-        grid_image_mlx = mx.array(numpy_normalize(grid_image_np))
-        return grid_image_mlx, labels
+            np_indices = np.random.choice(self.num_base, 4, replace=False)
+            mlx_indices = mx.array(np_indices)
+
+            images = self.base_images_mlx[mlx_indices] # MLX array, shape (4, 28, 28, 1)
+            labels = self.base_labels_mlx[mlx_indices] # MLX array, shape (4,)
+
+            # --- Grid Creation using NumPy ---
+            # Convert sampled MLX arrays BACK to NumPy for tiling
+            # logger.info(f"DEBUG: images dtype: {images.dtype}") 
+            images_np = [np.array(img) for img in images] # <--- Converts each (28, 28, 1) to NumPy
+
+            grid_image_np = np.zeros((self.grid_size, self.grid_size, 1), dtype=np.float32) # NumPy is fine here
+            grid_image_np[0:28, 0:28, :] = images_np[0]
+            grid_image_np[0:28, 28:56, :] = images_np[1]
+            grid_image_np[28:56, 0:28, :] = images_np[2]
+            grid_image_np[28:56, 28:56, :] = images_np[3]
+
+            # Normalize NumPy array and convert final grid BACK to MLX
+            grid_image_mlx = mx.array(numpy_normalize(grid_image_np))
+
+            return grid_image_mlx, labels # labels is already an MLX array
 
 # --- Phase 3: Dynamic Layout Data Generation ---
 
