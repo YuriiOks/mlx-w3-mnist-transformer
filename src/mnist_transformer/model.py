@@ -39,11 +39,9 @@ except ImportError as e:
 class VisionTransformer(nn.Module):
     """ Vision Transformer (ViT) for image classification (Phases 1 & 2). """
     def __init__(
-        self, img_size: int, patch_size: int, in_channels: int, num_classes: int,
-        embed_dim: int, depth: int, num_heads: int, mlp_ratio: float,
-        # --- Use single dropout value ---
-        dropout: float = 0.1, # Single dropout arg
-        num_outputs: int = 1,
+        self, img_size: int, patch_size: int, in_channels: int,
+        num_classes: int, embed_dim: int, depth: int, num_heads: int,
+        mlp_ratio: float, dropout: float = 0.1, num_outputs: int = 1,
     ):
         super().__init__()
         self.num_classes = num_classes
@@ -55,10 +53,7 @@ class VisionTransformer(nn.Module):
         )
         self.encoder_blocks = nn.ModuleList([
             TransformerEncoderBlock(
-                embed_dim,
-                num_heads,
-                mlp_ratio,
-                dropout # <-- Pass the single dropout value
+                embed_dim, num_heads, mlp_ratio, dropout
             )
             for _ in range(depth)])
         self.norm = nn.LayerNorm(embed_dim)
@@ -80,7 +75,9 @@ class VisionTransformer(nn.Module):
                 nn.init.constant_(m.bias, 0)
                 nn.init.constant_(m.weight, 1.0)
         if hasattr(self, 'patch_embed'):
-            nn.init.trunc_normal_(self.patch_embed.position_embedding, std=.02)
+            nn.init.trunc_normal_(
+                self.patch_embed.position_embedding, std=.02
+            )
             nn.init.trunc_normal_(self.patch_embed.cls_token, std=.02)
 
     def get_encoder_features(self, x: torch.Tensor) -> torch.Tensor:
@@ -105,12 +102,11 @@ class EncoderDecoderViT(nn.Module):
     Encoder-Decoder Vision Transformer for sequence generation (Phase 3).
     """
     def __init__(
-        self,
-        img_size: int, patch_size: int, in_channels: int,
+        self, img_size: int, patch_size: int, in_channels: int,
         encoder_embed_dim: int, encoder_depth: int, encoder_num_heads: int,
         decoder_vocab_size: int, decoder_embed_dim: int, decoder_depth: int,
-        decoder_num_heads: int, mlp_ratio: float = 2.0, dropout: float = 0.1,
-        attention_dropout: float = 0.1,
+        decoder_num_heads: int, mlp_ratio: float = 2.0,
+        dropout: float = 0.1, attention_dropout: float = 0.1,
     ):
         super().__init__()
         self.decoder_vocab_size = decoder_vocab_size
@@ -162,7 +158,9 @@ class EncoderDecoderViT(nn.Module):
             elif isinstance(m, nn.Embedding):
                 nn.init.trunc_normal_(m.weight, std=.02)
         if hasattr(self, 'patch_embed'):
-            nn.init.trunc_normal_(self.patch_embed.position_embedding, std=.02)
+            nn.init.trunc_normal_(
+                self.patch_embed.position_embedding, std=.02
+            )
             nn.init.trunc_normal_(self.patch_embed.cls_token, std=.02)
         if hasattr(self, 'decoder_pos_embed'):
             nn.init.trunc_normal_(self.decoder_pos_embed, std=.02)
@@ -193,7 +191,9 @@ class EncoderDecoderViT(nn.Module):
         memory = self.encode(src_img)
         tgt_len = tgt_seq.size(1)
         causal_mask = torch.tril(
-            torch.ones(tgt_len, tgt_len, device=tgt_seq.device, dtype=torch.bool)
+            torch.ones(
+                tgt_len, tgt_len, device=tgt_seq.device, dtype=torch.bool
+            )
         )
         logits = self.decode(tgt_seq, memory, tgt_mask=causal_mask)
         return logits
@@ -209,8 +209,7 @@ if __name__ == '__main__':
 
     p1_model = VisionTransformer(
         img_size=28, patch_size=7, in_channels=1, num_classes=10,
-        embed_dim=64, depth=4, num_heads=4,
-        mlp_ratio=_mlp_ratio, # <-- ADDED HERE
+        embed_dim=64, depth=4, num_heads=4, mlp_ratio=_mlp_ratio,
         num_outputs=1
     )
     p1_input = torch.randn(4, 1, 28, 28)
@@ -221,7 +220,6 @@ if __name__ == '__main__':
     p2_model = VisionTransformer(
         img_size=56, patch_size=7, in_channels=1, num_classes=10,
         embed_dim=64, depth=4, num_heads=4, mlp_ratio=_mlp_ratio,
-
         num_outputs=4
     )
     p2_input = torch.randn(2, 1, 56, 56)
