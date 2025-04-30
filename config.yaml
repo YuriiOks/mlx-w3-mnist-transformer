@@ -77,7 +77,7 @@ training:
     num_val_samples: 10000   # Generate 10k synthetic val images
   # Phase 3
   phase3:
-    epochs: 30
+    epochs: 100
     batch_size: 64
     base_lr: 1e-4
     weight_decay: 0.05
