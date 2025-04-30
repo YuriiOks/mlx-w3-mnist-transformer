@@ -110,6 +110,11 @@ def parse_args(config: dict):
     parser.add_argument('--seed', type=int, default=42,
         help='Random seed.')
 
+    parser.add_argument(
+        '--resume', action='store_true', default=False,
+        help='Resume training from the latest checkpoint.'
+    )
+
     args = parser.parse_args()
 
     logger.info("--- Effective Configuration (PyTorch) ---")
