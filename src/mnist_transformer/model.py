@@ -3,7 +3,7 @@
 # Copyright (c) 2025 Backprop Bunch Team (Yurii, Amy, Guillaume, Aygun)
 # Description: Defines ViT Encoder & Encoder-Decoder model architectures.
 # Created: 2025-04-28
-# Updated: 2025-04-29
+# Updated: 2025-04-30
 
 import torch
 import torch.nn as nn
@@ -37,11 +37,33 @@ except ImportError as e:
 
 # --- Phase 1 & 2: Vision Transformer (Encoder Only) ---
 class VisionTransformer(nn.Module):
-    """ Vision Transformer (ViT) for image classification (Phases 1 & 2). """
+    """
+    Vision Transformer (ViT) for image classification (Phases 1 & 2).
+
+    Args:
+        img_size (int): Input image size (height/width).
+        patch_size (int): Patch size for splitting image.
+        in_channels (int): Number of input channels.
+        num_classes (int): Number of output classes.
+        embed_dim (int): Embedding dimension.
+        depth (int): Number of encoder blocks.
+        num_heads (int): Number of attention heads.
+        mlp_ratio (float): MLP hidden dim ratio.
+        dropout (float): Dropout probability.
+        num_outputs (int): Number of output heads.
+    """
     def __init__(
-        self, img_size: int, patch_size: int, in_channels: int,
-        num_classes: int, embed_dim: int, depth: int, num_heads: int,
-        mlp_ratio: float, dropout: float = 0.1, num_outputs: int = 1,
+        self,
+        img_size: int,
+        patch_size: int,
+        in_channels: int,
+        num_classes: int,
+        embed_dim: int,
+        depth: int,
+        num_heads: int,
+        mlp_ratio: float,
+        dropout: float = 0.1,
+        num_outputs: int = 1,
     ):
         super().__init__()
         self.num_classes = num_classes
@@ -49,13 +71,20 @@ class VisionTransformer(nn.Module):
         self.embed_dim = embed_dim
 
         self.patch_embed = PatchEmbedding(
-            img_size, patch_size, in_channels, embed_dim
+            img_size,
+            patch_size,
+            in_channels,
+            embed_dim
         )
         self.encoder_blocks = nn.ModuleList([
             TransformerEncoderBlock(
-                embed_dim, num_heads, mlp_ratio, dropout
+                embed_dim,
+                num_heads,
+                mlp_ratio,
+                dropout
             )
-            for _ in range(depth)])
+            for _ in range(depth)
+        ])
         self.norm = nn.LayerNorm(embed_dim)
         self.head = nn.Linear(embed_dim, num_classes * num_outputs)
         self._initialize_weights()
@@ -67,6 +96,9 @@ class VisionTransformer(nn.Module):
             )
 
     def _initialize_weights(self):
+        """
+        Initialize model weights using Xavier and truncated normal.
+        """
         for m in self.modules():
             if isinstance(m, nn.Linear):
                 nn.init.xavier_uniform_(m.weight)
@@ -80,19 +112,45 @@ class VisionTransformer(nn.Module):
             )
             nn.init.trunc_normal_(self.patch_embed.cls_token, std=.02)
 
-    def get_encoder_features(self, x: torch.Tensor) -> torch.Tensor:
+    def get_encoder_features(
+        self,
+        x: torch.Tensor
+    ) -> torch.Tensor:
+        """
+        Pass input through patch embedding and encoder blocks.
+
+        Args:
+            x (torch.Tensor): Input image tensor.
+
+        Returns:
+            torch.Tensor: Encoded features.
+        """
         x = self.patch_embed(x)
         for block in self.encoder_blocks:
             x = block(x)
         return x
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self,
+        x: torch.Tensor
+    ) -> torch.Tensor:
+        """
+        Forward pass for classification.
+
+        Args:
+            x (torch.Tensor): Input image tensor.
+
+        Returns:
+            torch.Tensor: Output logits.
+        """
         x = self.get_encoder_features(x)
         cls_token_output = self.norm(x[:, 0])
         logits = self.head(cls_token_output)
         if self.num_outputs > 1:
             logits = logits.view(
-                x.shape[0], self.num_outputs, self.num_classes
+                x.shape[0],
+                self.num_outputs,
+                self.num_classes
             )
         return logits
 
@@ -100,25 +158,55 @@ class VisionTransformer(nn.Module):
 class EncoderDecoderViT(nn.Module):
     """
     Encoder-Decoder Vision Transformer for sequence generation (Phase 3).
+
+    Args:
+        img_size (int): Input image size.
+        patch_size (int): Patch size for image.
+        in_channels (int): Number of input channels.
+        encoder_embed_dim (int): Encoder embedding dimension.
+        encoder_depth (int): Number of encoder blocks.
+        encoder_num_heads (int): Encoder attention heads.
+        decoder_vocab_size (int): Decoder vocabulary size.
+        decoder_embed_dim (int): Decoder embedding dimension.
+        decoder_depth (int): Number of decoder blocks.
+        decoder_num_heads (int): Decoder attention heads.
+        mlp_ratio (float): MLP hidden dim ratio.
+        dropout (float): Dropout probability.
+        attention_dropout (float): Attention dropout probability.
     """
     def __init__(
-        self, img_size: int, patch_size: int, in_channels: int,
-        encoder_embed_dim: int, encoder_depth: int, encoder_num_heads: int,
-        decoder_vocab_size: int, decoder_embed_dim: int, decoder_depth: int,
-        decoder_num_heads: int, mlp_ratio: float = 2.0,
-        dropout: float = 0.1, attention_dropout: float = 0.1,
+        self,
+        img_size: int,
+        patch_size: int,
+        in_channels: int,
+        encoder_embed_dim: int,
+        encoder_depth: int,
+        encoder_num_heads: int,
+        decoder_vocab_size: int,
+        decoder_embed_dim: int,
+        decoder_depth: int,
+        decoder_num_heads: int,
+        mlp_ratio: float = 2.0,
+        dropout: float = 0.1,
+        attention_dropout: float = 0.1,
     ):
         super().__init__()
         self.decoder_vocab_size = decoder_vocab_size
 
         # 1. Encoder Part
         self.patch_embed = PatchEmbedding(
-            img_size, patch_size, in_channels, encoder_embed_dim
+            img_size,
+            patch_size,
+            in_channels,
+            encoder_embed_dim
         )
         self.encoder_blocks = nn.ModuleList([
             TransformerEncoderBlock(
-                encoder_embed_dim, encoder_num_heads, mlp_ratio,
-                attention_dropout, dropout
+                encoder_embed_dim,
+                encoder_num_heads,
+                mlp_ratio,
+                attention_dropout,
+                dropout
             )
             for _ in range(encoder_depth)
         ])
@@ -126,7 +214,8 @@ class EncoderDecoderViT(nn.Module):
 
         # 2. Decoder Part
         self.decoder_embed = nn.Embedding(
-            decoder_vocab_size, decoder_embed_dim
+            decoder_vocab_size,
+            decoder_embed_dim
         )
         self.max_seq_len = 10
         self.decoder_pos_embed = nn.Parameter(
@@ -134,11 +223,17 @@ class EncoderDecoderViT(nn.Module):
         )
         self.decoder_blocks = nn.ModuleList([
             TransformerDecoderBlock(
-                decoder_embed_dim, decoder_num_heads, mlp_ratio, dropout
+                decoder_embed_dim,
+                decoder_num_heads,
+                mlp_ratio,
+                dropout
             )
             for _ in range(decoder_depth)
         ])
-        self.output_head = nn.Linear(decoder_embed_dim, decoder_vocab_size)
+        self.output_head = nn.Linear(
+            decoder_embed_dim,
+            decoder_vocab_size
+        )
 
         self._initialize_weights()
         if logger:
@@ -148,6 +243,9 @@ class EncoderDecoderViT(nn.Module):
             )
 
     def _initialize_weights(self):
+        """
+        Initialize model weights for all modules.
+        """
         for m in self.modules():
             if isinstance(m, nn.Linear):
                 nn.init.xavier_uniform_(m.weight)
@@ -165,7 +263,19 @@ class EncoderDecoderViT(nn.Module):
         if hasattr(self, 'decoder_pos_embed'):
             nn.init.trunc_normal_(self.decoder_pos_embed, std=.02)
 
-    def encode(self, src_img: torch.Tensor) -> torch.Tensor:
+    def encode(
+        self,
+        src_img: torch.Tensor
+    ) -> torch.Tensor:
+        """
+        Encode input image into memory representation.
+
+        Args:
+            src_img (torch.Tensor): Input image tensor.
+
+        Returns:
+            torch.Tensor: Encoded memory tensor.
+        """
         x = self.patch_embed(src_img)
         for block in self.encoder_blocks:
             x = block(x)
@@ -173,9 +283,22 @@ class EncoderDecoderViT(nn.Module):
         return memory
 
     def decode(
-        self, tgt_seq: torch.Tensor, memory: torch.Tensor,
+        self,
+        tgt_seq: torch.Tensor,
+        memory: torch.Tensor,
         tgt_mask: Optional[torch.Tensor] = None
     ) -> torch.Tensor:
+        """
+        Decode target sequence using encoder memory.
+
+        Args:
+            tgt_seq (torch.Tensor): Target token indices.
+            memory (torch.Tensor): Encoder memory tensor.
+            tgt_mask (Optional[torch.Tensor]): Causal mask.
+
+        Returns:
+            torch.Tensor: Output logits for each token.
+        """
         B, T = tgt_seq.shape
         tgt_embed = self.decoder_embed(tgt_seq)
         pos_embed = self.decoder_pos_embed[:, :T]
@@ -186,16 +309,35 @@ class EncoderDecoderViT(nn.Module):
         return logits
 
     def forward(
-        self, src_img: torch.Tensor, tgt_seq: torch.Tensor
+        self,
+        src_img: torch.Tensor,
+        tgt_seq: torch.Tensor
     ) -> torch.Tensor:
+        """
+        Forward pass for encoder-decoder model.
+
+        Args:
+            src_img (torch.Tensor): Input image tensor.
+            tgt_seq (torch.Tensor): Target token indices.
+
+        Returns:
+            torch.Tensor: Output logits for each token.
+        """
         memory = self.encode(src_img)
         tgt_len = tgt_seq.size(1)
         causal_mask = torch.tril(
             torch.ones(
-                tgt_len, tgt_len, device=tgt_seq.device, dtype=torch.bool
+                tgt_len,
+                tgt_len,
+                device=tgt_seq.device,
+                dtype=torch.bool
             )
         )
-        logits = self.decode(tgt_seq, memory, tgt_mask=causal_mask)
+        logits = self.decode(
+            tgt_seq,
+            memory,
+            tgt_mask=causal_mask
+        )
         return logits
 
 # --- Test Block ---
@@ -208,8 +350,14 @@ if __name__ == '__main__':
     _mlp_ratio = 2.0
 
     p1_model = VisionTransformer(
-        img_size=28, patch_size=7, in_channels=1, num_classes=10,
-        embed_dim=64, depth=4, num_heads=4, mlp_ratio=_mlp_ratio,
+        img_size=28,
+        patch_size=7,
+        in_channels=1,
+        num_classes=10,
+        embed_dim=64,
+        depth=4,
+        num_heads=4,
+        mlp_ratio=_mlp_ratio,
         num_outputs=1
     )
     p1_input = torch.randn(4, 1, 28, 28)
@@ -218,8 +366,14 @@ if __name__ == '__main__':
     assert p1_output.shape == (4, 10)
 
     p2_model = VisionTransformer(
-        img_size=56, patch_size=7, in_channels=1, num_classes=10,
-        embed_dim=64, depth=4, num_heads=4, mlp_ratio=_mlp_ratio,
+        img_size=56,
+        patch_size=7,
+        in_channels=1,
+        num_classes=10,
+        embed_dim=64,
+        depth=4,
+        num_heads=4,
+        mlp_ratio=_mlp_ratio,
         num_outputs=4
     )
     p2_input = torch.randn(2, 1, 56, 56)
@@ -247,10 +401,15 @@ if __name__ == '__main__':
     p3_tgt_input = torch.randint(0, _V_dec, (_B, _S_tgt - 1))
 
     p3_model = EncoderDecoderViT(
-        img_size=_img_size, patch_size=_patch_size, in_channels=_in_channels,
-        encoder_embed_dim=_enc_D, encoder_depth=_enc_depth,
-        encoder_num_heads=_enc_H, decoder_vocab_size=_V_dec,
-        decoder_embed_dim=_dec_D, decoder_depth=_dec_depth,
+        img_size=_img_size,
+        patch_size=_patch_size,
+        in_channels=_in_channels,
+        encoder_embed_dim=_enc_D,
+        encoder_depth=_enc_depth,
+        encoder_num_heads=_enc_H,
+        decoder_vocab_size=_V_dec,
+        decoder_embed_dim=_dec_D,
+        decoder_depth=_dec_depth,
         decoder_num_heads=_dec_H
     )
 
