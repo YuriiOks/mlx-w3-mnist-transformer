@@ -15,7 +15,7 @@ import os
 import sys
 from pathlib import Path
 from typing import List, Dict, Optional, Any, Tuple
-from tqdm import tqdm # Ensure this is imported correctly
+from tqdm import tqdm  # Ensure this is imported correctly
 
 # --- Add project root ---
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -30,7 +30,7 @@ try:
     from utils.tokenizer_utils import PAD_TOKEN_ID
 except ImportError:
     logger.warning("⚠️ Tokenizer utils or PAD_TOKEN_ID not found.")
-    PAD_TOKEN_ID = 0 # Default assumption
+    PAD_TOKEN_ID = 0  # Default assumption
 
 # W&B Import Handling
 try:
@@ -55,21 +55,26 @@ def calculate_loss_acc_mlx(
     For Phase 3, calculates loss and accuracy ignoring padding tokens.
 
     Args:
-        model: The MLX model (either VisionTransformerMLX or EncoderDecoderViTMLX).
-        images: Input image batch (B, H, W, C). Only used in Phase 3 if model is EncoderDecoder.
-        labels: Target labels batch. Shape depends on phase:
-                - Phase 1: (B,) - Single digit labels.
-                - Phase 2: (B, 4) - Four digit labels for the grid.
-                - Phase 3: (B, SeqLen) - Full target sequence including START/END/PAD tokens.
-        phase: Current training phase (1, 2, or 3).
-        pad_token_id: The ID used for padding in sequences (relevant for Phase 3).
+        model (nn.Module): The MLX model (either VisionTransformerMLX or 
+            EncoderDecoderViTMLX).
+        images (mx.array): Input image batch (B, H, W, C). Only used in 
+            Phase 3 if model is EncoderDecoder.
+        labels (mx.array): Target labels batch. Shape depends on phase:
+            - Phase 1: (B,) - Single digit labels.
+            - Phase 2: (B, 4) - Four digit labels for the grid.
+            - Phase 3: (B, SeqLen) - Full target sequence including 
+              START/END/PAD tokens.
+        phase (int): Current training phase (1, 2, or 3).
+        pad_token_id (int): The ID used for padding in sequences 
+            (relevant for Phase 3).
 
     Returns:
-        Tuple containing:
-        - Scalar loss value for the batch (averaged over non-pad tokens for P3).
-        - Scalar accuracy value for the batch (averaged over non-pad tokens for P3).
+        Tuple[mx.array, mx.array]: 
+            - Scalar loss value for the batch (averaged over non-pad tokens 
+              for P3).
+            - Scalar accuracy value for the batch (averaged over non-pad 
+              tokens for P3).
     """
-
     # --- Adapt forward pass based on phase ---
     if phase == 1 or phase == 2:
         logits = model(images)
@@ -109,7 +114,8 @@ def calculate_loss_acc_mlx(
         predicted_flat = mx.argmax(logits_flat, axis=-1)
         correct = mx.sum((predicted_flat == target_flat) * mask)
         total = mx.sum(mask).item()
-        loss = mx.sum(per_token_loss * mask) / total if total > 0 else mx.array(0.0)
+        loss = mx.sum(per_token_loss * mask) / total if total > 0 \
+            else mx.array(0.0)
     else:
         loss = mx.array(0.0)
         correct = mx.array(0)
@@ -142,20 +148,21 @@ def train_epoch_mlx(
     Handles gradient calculation and optimizer updates. Logs batch loss.
 
     Args:
-        model: The MLX model to train.
-        optimizer: The MLX optimizer.
-        images_full: Full training image dataset as an mx.array.
-        labels_full: Full training label dataset as an mx.array.
-        batch_size: The number of samples per batch.
-        epoch_num: The current epoch number (0-indexed).
-        total_epochs: The total number of epochs for training.
-        wandb_run: Optional W&B run object for logging.
-        log_frequency: How often (in batches) to log to W&B.
-        phase: Current training phase (1, 2, or 3).
-        pad_token_id: Token ID for padding (used in loss wrapper for Phase 3).
+        model (nn.Module): The MLX model to train.
+        optimizer (optim.Optimizer): The MLX optimizer.
+        images_full (mx.array): Full training image dataset as an mx.array.
+        labels_full (mx.array): Full training label dataset as an mx.array.
+        batch_size (int): The number of samples per batch.
+        epoch_num (int): The current epoch number (0-indexed).
+        total_epochs (int): The total number of epochs for training.
+        wandb_run (Optional[Any]): Optional W&B run object for logging.
+        log_frequency (int): How often (in batches) to log to W&B.
+        phase (int): Current training phase (1, 2, or 3).
+        pad_token_id (int): Token ID for padding (used in loss wrapper for 
+            Phase 3).
 
     Returns:
-        The average training loss for the epoch.
+        float: The average training loss for the epoch.
     """
     model.train()
     total_loss = 0.0
@@ -186,7 +193,7 @@ def train_epoch_mlx(
     )
 
     for i in data_iterator:
-        np_indices = perm[i * batch_size : (i + 1) * batch_size]
+        np_indices = perm[i * batch_size: (i + 1) * batch_size]
         mlx_indices = mx.array(np_indices)
         batch_images = images_full[mlx_indices]
         batch_labels = labels_full[mlx_indices]
@@ -238,16 +245,16 @@ def evaluate_model_mlx(
     padding for Phase 3 accuracy and loss averaging.
 
     Args:
-        model: The MLX model to evaluate.
-        images_full: Full evaluation image dataset as an mx.array.
-        labels_full: Full evaluation label dataset as an mx.array.
-        batch_size: Batch size for evaluation.
-        phase: Current training phase (1, 2, or 3).
-        pad_token_id: Token ID for padding (used for Phase 3 metrics).
+        model (nn.Module): The MLX model to evaluate.
+        images_full (mx.array): Full evaluation image dataset as an mx.array.
+        labels_full (mx.array): Full evaluation label dataset as an mx.array.
+        batch_size (int): Batch size for evaluation.
+        phase (int): Current training phase (1, 2, or 3).
+        pad_token_id (int): Token ID for padding (used for Phase 3 metrics).
 
     Returns:
-        A dictionary containing average validation loss ('val_loss')
-        and average validation accuracy ('val_accuracy').
+        Dict[str, float]: Dictionary containing average validation loss 
+            ('val_loss') and average validation accuracy ('val_accuracy').
     """
     model.eval()
     total_loss = 0.0
@@ -269,7 +276,7 @@ def evaluate_model_mlx(
 
     for i in data_iterator:
         np_indices = np.arange(
-            i*batch_size, min(num_samples, (i+1)*batch_size)
+            i * batch_size, min(num_samples, (i + 1) * batch_size)
         )
         mlx_indices = mx.array(np_indices)
         batch_images = images_full[mlx_indices]
@@ -295,7 +302,7 @@ def evaluate_model_mlx(
 
         data_iterator.set_postfix(
             loss=f"{loss.item():.4f}",
-            acc=f"{acc.item()*100:.2f}%"
+            acc=f"{acc.item() * 100:.2f}%"
         )
 
     avg_loss = (
@@ -335,25 +342,27 @@ def train_model_mlx(
     logging metrics, and saving the final model weights.
 
     Args:
-        model: The MLX model instance.
-        optimizer: The MLX optimizer instance.
-        train_images: Full training image dataset (mx.array).
-        train_labels: Full training label dataset (mx.array).
-        val_images: Full validation image dataset (mx.array).
-        val_labels: Full validation label dataset (mx.array).
-        epochs: Total number of epochs to train.
-        batch_size: Batch size for training and evaluation.
-        model_save_dir: Directory to save the final model weights.
-        config: Dictionary containing configuration parameters (e.g., tokenizer pad_id).
-        phase: Current training phase (1, 2, or 3).
-        run_name: Name for the training run (used for saving).
-        wandb_run: Optional W&B run object for logging.
+        model (nn.Module): The MLX model instance.
+        optimizer (optim.Optimizer): The MLX optimizer instance.
+        train_images (mx.array): Full training image dataset (mx.array).
+        train_labels (mx.array): Full training label dataset (mx.array).
+        val_images (mx.array): Full validation image dataset (mx.array).
+        val_labels (mx.array): Full validation label dataset (mx.array).
+        epochs (int): Total number of epochs to train.
+        batch_size (int): Batch size for training and evaluation.
+        model_save_dir (str | Path): Directory to save the final model weights.
+        config (dict): Dictionary containing configuration parameters 
+            (e.g., tokenizer pad_id).
+        phase (int): Current training phase (1, 2, or 3).
+        run_name (str): Name for the training run (used for saving).
+        wandb_run (Optional[Any]): Optional W&B run object for logging.
 
     Returns:
-        A tuple containing:
-        - metrics_history: A dictionary storing lists of metrics per epoch
-          ('avg_train_loss', 'val_loss', 'val_accuracy', 'learning_rate').
-        - last_val_metrics: A dictionary with the validation metrics from the final epoch.
+        Tuple[Dict[str, List[float]], Dict]: 
+            - metrics_history: A dictionary storing lists of metrics per epoch
+              ('avg_train_loss', 'val_loss', 'val_accuracy', 'learning_rate').
+            - last_val_metrics: A dictionary with the validation metrics from 
+              the final epoch.
     """
     logger.info(
         f"🚀 Starting MLX Model Training: Run='{run_name}', Phase={phase}"
@@ -464,7 +473,7 @@ if __name__ == "__main__":
         )
 
         dummy_logits_p2 = mx.random.normal(shape=(2, 4, 10))
-        dummy_labels_p2 = mx.array([[1,2,3,4], [5,6,7,8]])
+        dummy_labels_p2 = mx.array([[1, 2, 3, 4], [5, 6, 7, 8]])
         dummy_model_p2 = lambda img: dummy_logits_p2
         loss_p2, acc_p2 = calculate_loss_acc_mlx(
             dummy_model_p2, None, dummy_labels_p2, phase=2
@@ -480,28 +489,26 @@ if __name__ == "__main__":
     # --- Add a simple check for phase 3 in calculate_loss_acc_mlx ---
     logger.info("\n--- Testing P3 loss/acc calc ---")
     try:
-          _B, _S, _V = 2, 10, 13
-          dummy_logits_p3 = mx.random.normal(shape=(_B, _S - 1, _V)) # B, Seq-1, V
-          dummy_labels_p3 = mx.random.randint(1, _V-2, (_B, _S)).astype(mx.uint32) # B, Seq (avoid 0=PAD for now)
+        _B, _S, _V = 2, 10, 13
+        dummy_logits_p3 = mx.random.normal(shape=(_B, _S - 1, _V))  # B, Seq-1, V
+        dummy_labels_p3 = mx.random.randint(1, _V - 2, (_B, _S)).astype(mx.uint32)
+        dummy_labels_p3[:, -2:] = PAD_TOKEN_ID
+        dummy_labels_p3[:, 0] = 1  # Assume 1 is START token
+        mx.eval(dummy_labels_p3)
+        dummy_model_p3 = lambda img, tgt_seq: dummy_logits_p3
 
-          # --- Fix: Use direct assignment for padding, not .at[].set() ---
-          dummy_labels_p3[:, -2:] = PAD_TOKEN_ID
-          dummy_labels_p3[:, 0] = 1 # Assume 1 is START token
-          mx.eval(dummy_labels_p3)
-          # --- End Fix ---
-
-          dummy_model_p3 = lambda img, tgt_seq: dummy_logits_p3
-
-          loss_p3, acc_p3 = calculate_loss_acc_mlx(
-              dummy_model_p3,
-              mx.zeros((_B, 32, 32, 1)), # Dummy image input
-              dummy_labels_p3,
-              phase=3,
-              pad_token_id=PAD_TOKEN_ID
-          )
-          mx.eval(loss_p3, acc_p3)
-          logger.info(f"P3 Dummy Loss: {loss_p3.item():.4f}, Acc: {acc_p3.item()*100:.2f}%")
-          logger.info("✅ P3 calc OK.")
+        loss_p3, acc_p3 = calculate_loss_acc_mlx(
+            dummy_model_p3,
+            mx.zeros((_B, 32, 32, 1)),  # Dummy image input
+            dummy_labels_p3,
+            phase=3,
+            pad_token_id=PAD_TOKEN_ID
+        )
+        mx.eval(loss_p3, acc_p3)
+        logger.info(
+            f"P3 Dummy Loss: {loss_p3.item():.4f}, Acc: {acc_p3.item()*100:.2f}%"
+        )
+        logger.info("✅ P3 calc OK.")
     except Exception as e:
         logger.error(f"❌ P3 Calc Error: {e}", exc_info=True)
 
