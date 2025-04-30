@@ -76,6 +76,10 @@ def parse_args(
         default='config.yaml',
         help='Path to config file.'
     )
+    parser.add_argument(
+        '--resume', action='store_true', default=False,
+        help='Resume training from the latest checkpoint in the run directory.'
+    )
 
     temp_args, _ = parser.parse_known_args()
     phase = temp_args.phase
@@ -285,36 +289,30 @@ def main():
     mx.random.seed(args.seed)
     logger.info(f"🌱 Seed set to {args.seed}")
 
-    run = None
-    run_name_base = (
-        f"Phase{args.phase}_E{args.epochs}_LR{args.lr}_B{args.batch_size}"
-    )
-    run_name = f"MLX_{run_name_base}_ViT"
-    if args.wandb_run_name:
+    # --- W&B Init ---
+    if args.wandb_run_name is None:
+        run_name_base = f"Phase{args.phase}_E{args.epochs}_LR{args.lr}_B{args.batch_size}"
+        run_name = f"MLX_{run_name_base}_ViT"
+    else:
         run_name = args.wandb_run_name
+    run_save_path = Path(args.model_save_dir) / run_name
 
+    run = None
     if wandb is not None and not args.no_wandb:
         try:
             run = wandb.init(
                 project=args.wandb_project,
                 entity=args.wandb_entity,
                 name=run_name,
-                config=vars(args)
+                config=vars(args),
+                resume="allow",
+                id=wandb.util.generate_id() if not args.resume else None
             )
-            logger.info(
-                f"📊 Initialized W&B run: {run.name} ({run.url})"
-            )
+            logger.info(f"📊 Initialized W&B run: {run.name} ({run.url})")
         except Exception as e:
-            logger.error(
-                f"❌ Failed W&B init: {e}", exc_info=True
-            )
-            run = None
+            logger.error(f"❌ Failed W&B init: {e}"); run = None
     else:
         logger.info("📊 W&B logging disabled.")
-        run_name = (
-            f"MLX_{run_name_base}_local"
-            if args.wandb_run_name is None else args.wandb_run_name
-        )
 
     # --- Load or Generate Data ---
     logger.info(
@@ -501,6 +499,7 @@ def main():
         phase=args.phase,
         run_name=run.name if run else run_name,
         wandb_run=run,
+        resume_from_checkpoint=args.resume
     )
 
     training_time = time.time() - start_time
@@ -508,27 +507,20 @@ def main():
 
     logger.info("--- Finalizing Run ---")
     logger.info(f"Final Validation Metrics: {last_val_metrics}")
-    run_save_path = Path(args.model_save_dir) / (
-        run.name if run else run_name
-    )
     metrics_file = save_metrics(metrics_history, run_save_path)
     plot_file = plot_metrics(metrics_history, run_save_path)
     model_file = run_save_path / "model_weights.safetensors"
 
     if run:
-        logger.info("☁️ Logging final artifacts to W&B...")
         try:
             artifact_name = f"mnist_vit_mlx_final_{run.id}"
             final_artifact = wandb.Artifact(
-                artifact_name,
-                type="model"
+                artifact_name, type="model"
             )
             if model_file.exists():
                 final_artifact.add_file(str(model_file))
             else:
-                logger.warning(
-                    f"MLX Model weights file {model_file} not found."
-                )
+                logger.warning(f"MLX Model weights file {model_file} not found.")
             if metrics_file and Path(metrics_file).exists():
                 final_artifact.add_file(metrics_file)
             if plot_file and Path(plot_file).exists():
@@ -537,13 +529,9 @@ def main():
             if config_log_path.exists():
                 final_artifact.add_file(str(config_log_path))
             run.log_artifact(final_artifact)
-            logger.info(
-                "  Logged final model weights, results, and config artifact."
-            )
+            logger.info("  Logged final model weights, results, and config artifact.")
         except Exception as e:
-            logger.error(
-                f"❌ Failed W&B artifact logging: {e}", exc_info=True
-            )
+            logger.error(f"❌ Failed W&B artifact logging: {e}", exc_info=True)
         run.finish()
         logger.info("☁️ W&B run finished.")
 
