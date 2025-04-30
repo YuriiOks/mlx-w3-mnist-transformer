@@ -367,27 +367,15 @@ def main():
     tokenizer_cfg = config.get('tokenizer', {})
     model = None
     if args.phase == 1 or args.phase == 2:
-        img_size = dataset_cfg.get(
-            f'image_size_phase{args.phase}',
-            dataset_cfg.get('image_size')
-        )
+        img_size = dataset_cfg.get(f'image_size_phase{args.phase}', dataset_cfg.get('image_size'))
         patch_size = dataset_cfg.get('patch_size')
-        num_outputs = dataset_cfg.get(
-            f'num_outputs_phase{args.phase}', 1
-        )
+        num_outputs = dataset_cfg.get(f'num_outputs_phase{args.phase}', 1)
         num_classes = dataset_cfg.get('num_classes')
-
         model = VisionTransformerMLX(
-            img_size=img_size,
-            patch_size=patch_size,
-            in_channels=dataset_cfg['in_channels'],
-            num_classes=num_classes,
-            embed_dim=model_cfg['embed_dim'],
-            depth=model_cfg['depth'],
-            num_heads=model_cfg['num_heads'],
-            mlp_ratio=model_cfg['mlp_ratio'],
+            img_size=img_size, patch_size=patch_size, in_channels=dataset_cfg['in_channels'],
+            num_classes=num_classes, embed_dim=model_cfg['embed_dim'], depth=model_cfg['depth'],
+            num_heads=model_cfg['num_heads'], mlp_ratio=model_cfg['mlp_ratio'],
             dropout=model_cfg.get('dropout', 0.1),
-            attention_dropout=model_cfg.get('attention_dropout', 0.1),
             num_outputs=num_outputs
         )
     elif args.phase == 3:
@@ -395,7 +383,6 @@ def main():
         patch_size = dataset_cfg.get('patch_size_phase3')
         decoder_vocab_size = tokenizer_cfg.get('vocab_size')
         max_seq_len = dataset_cfg.get('max_seq_len')
-
         model = EncoderDecoderViTMLX(
             img_size=img_size,
             patch_size=patch_size,
@@ -409,8 +396,7 @@ def main():
             decoder_num_heads=model_cfg['decoder_num_heads'],
             max_seq_len=max_seq_len,
             mlp_ratio=model_cfg['mlp_ratio'],
-            dropout=model_cfg.get('dropout', 0.1),
-            attention_dropout=model_cfg.get('attention_dropout', 0.1)
+            dropout=model_cfg.get('dropout', 0.1)
         )
     else:
         logger.error(
