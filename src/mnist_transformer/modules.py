@@ -3,7 +3,7 @@
 # Copyright (c) 2025 Backprop Bunch Team (Yurii, Amy, Guillaume, Aygun)
 # Description: Building blocks for ViT model (Encoder & Decoder components).
 # Created: 2025-04-28
-# Updated: 2025-04-29
+# Updated: 2025-04-30
 
 import torch
 import torch.nn as nn
@@ -35,21 +35,33 @@ except ImportError:
         logger.info("Using basic fallback logger for modules.py")
 
 
-# --- Patch Embedding (PyTorch Version) ---
 class PatchEmbedding(nn.Module):
     """
     Splits image into patches, flattens, linearly projects them (PyTorch).
     Prepends a CLS token and adds positional embeddings.
 
     Args:
-        image_size (int): Size of the input image (assumed square). Default 28.
-        patch_size (int): Size of each square patch. Default 7.
-        in_channels (int): Number of input image channels. Default 1.
-        embed_dim (int): The dimensionality of the patch embeddings. Default 64.
+        image_size (int): Size of the input image (assumed square).
+        patch_size (int): Size of each square patch.
+        in_channels (int): Number of input image channels.
+        embed_dim (int): The dimensionality of the patch embeddings.
     """
     def __init__(
-        self, image_size=28, patch_size=7, in_channels=1, embed_dim=64
+        self,
+        image_size: int = 28,
+        patch_size: int = 7,
+        in_channels: int = 1,
+        embed_dim: int = 64
     ):
+        """
+        Initialize PatchEmbedding module.
+
+        Args:
+            image_size (int): Size of the input image (assumed square).
+            patch_size (int): Size of each square patch.
+            in_channels (int): Number of input image channels.
+            embed_dim (int): The dimensionality of the patch embeddings.
+        """
         super().__init__()
         self.image_size = image_size
         self.patch_size = patch_size
@@ -77,10 +89,26 @@ class PatchEmbedding(nn.Module):
         self._initialize_weights()
 
     def _initialize_weights(self):
+        """
+        Initialize weights for positional embedding and CLS token.
+        """
         nn.init.trunc_normal_(self.position_embedding, std=.02)
         nn.init.trunc_normal_(self.cls_token, std=.02)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self,
+        x: torch.Tensor
+    ) -> torch.Tensor:
+        """
+        Forward pass for patch embedding.
+
+        Args:
+            x (torch.Tensor): Input tensor of shape (B, C, H, W).
+
+        Returns:
+            torch.Tensor: Embedded patches with positional encoding and
+                prepended CLS token. Shape (B, num_patches+1, embed_dim).
+        """
         batch_size = x.shape[0]
         x = self.projection(x)
         x = x.flatten(2)
@@ -91,7 +119,6 @@ class PatchEmbedding(nn.Module):
         return x
 
 
-# --- Attention Head (PyTorch Version) ---
 class AttentionHead(nn.Module):
     """
     A single head of self-attention / cross-attention (PyTorch).
@@ -102,8 +129,19 @@ class AttentionHead(nn.Module):
         dropout (float): Dropout probability for attention weights.
     """
     def __init__(
-        self, embed_dim: int, head_dim: int, dropout: float = 0.0
+        self,
+        embed_dim: int,
+        head_dim: int,
+        dropout: float = 0.0
     ):
+        """
+        Initialize AttentionHead.
+
+        Args:
+            embed_dim (int): Total embedding dimension of the input.
+            head_dim (int): Dimension of the subspace for this head.
+            dropout (float): Dropout probability for attention weights.
+        """
         super().__init__()
         self.head_dim = head_dim
         self.scale = head_dim ** -0.5
@@ -113,9 +151,24 @@ class AttentionHead(nn.Module):
         self.attn_dropout = nn.Dropout(dropout)
 
     def forward(
-        self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor,
+        self,
+        q: torch.Tensor,
+        k: torch.Tensor,
+        v: torch.Tensor,
         mask: Optional[torch.Tensor] = None
     ) -> torch.Tensor:
+        """
+        Forward pass for a single attention head.
+
+        Args:
+            q (torch.Tensor): Query tensor of shape (B, S, E).
+            k (torch.Tensor): Key tensor of shape (B, S, E).
+            v (torch.Tensor): Value tensor of shape (B, S, E).
+            mask (Optional[torch.Tensor]): Attention mask.
+
+        Returns:
+            torch.Tensor: Output tensor after attention.
+        """
         q = self.q_proj(q)
         k = self.k_proj(k)
         v = self.v_proj(v)
@@ -130,7 +183,6 @@ class AttentionHead(nn.Module):
         return output
 
 
-# --- Multi-Head Attention (PyTorch Version) ---
 class Attention(nn.Module):
     """
     Multi-Head Attention module using multiple AttentionHead instances.
@@ -142,8 +194,21 @@ class Attention(nn.Module):
         projection_dropout (float): Dropout probability after projection.
     """
     def __init__(
-        self, embed_dim=64, num_heads=4, dropout=0.0, projection_dropout=0.0
+        self,
+        embed_dim: int = 64,
+        num_heads: int = 4,
+        dropout: float = 0.0,
+        projection_dropout: float = 0.0
     ):
+        """
+        Initialize Multi-Head Attention.
+
+        Args:
+            embed_dim (int): Total dimension of the model.
+            num_heads (int): Number of parallel attention heads.
+            dropout (float): Dropout probability for attention weights.
+            projection_dropout (float): Dropout after projection.
+        """
         super().__init__()
         if embed_dim % num_heads != 0:
             raise ValueError("embed_dim must be divisible by num_heads")
@@ -151,16 +216,35 @@ class Attention(nn.Module):
         self.num_heads = num_heads
         self.head_dim = embed_dim // num_heads
         self.heads = nn.ModuleList([
-            AttentionHead(embed_dim, self.head_dim, dropout=dropout)
+            AttentionHead(
+                embed_dim,
+                self.head_dim,
+                dropout=dropout
+            )
             for _ in range(num_heads)
         ])
         self.proj = nn.Linear(embed_dim, embed_dim)
         self.proj_dropout = nn.Dropout(projection_dropout)
 
     def forward(
-        self, query: torch.Tensor, key: torch.Tensor, value: torch.Tensor,
+        self,
+        query: torch.Tensor,
+        key: torch.Tensor,
+        value: torch.Tensor,
         attn_mask: Optional[torch.Tensor] = None
     ) -> torch.Tensor:
+        """
+        Forward pass for multi-head attention.
+
+        Args:
+            query (torch.Tensor): Query tensor (B, S, E).
+            key (torch.Tensor): Key tensor (B, S, E).
+            value (torch.Tensor): Value tensor (B, S, E).
+            attn_mask (Optional[torch.Tensor]): Attention mask.
+
+        Returns:
+            torch.Tensor: Output tensor after multi-head attention.
+        """
         head_outputs = [
             head(query, key, value, attn_mask) for head in self.heads
         ]
@@ -170,12 +254,29 @@ class Attention(nn.Module):
         return x
 
 
-# --- MLP Block (PyTorch Version) ---
 class MLPBlock(nn.Module):
     """
     Standard Transformer MLP block (Linear -> Activation -> Dropout -> ...).
+
+    Args:
+        embed_dim (int): Input and output embedding dimension.
+        mlp_ratio (float): Expansion ratio for hidden layer.
+        dropout (float): Dropout probability.
     """
-    def __init__(self, embed_dim=64, mlp_ratio=2.0, dropout=0.1):
+    def __init__(
+        self,
+        embed_dim: int = 64,
+        mlp_ratio: float = 2.0,
+        dropout: float = 0.1
+    ):
+        """
+        Initialize MLPBlock.
+
+        Args:
+            embed_dim (int): Input and output embedding dimension.
+            mlp_ratio (float): Expansion ratio for hidden layer.
+            dropout (float): Dropout probability.
+        """
         super().__init__()
         hidden_dim = int(embed_dim * mlp_ratio)
         self.fc1 = nn.Linear(embed_dim, hidden_dim)
@@ -184,7 +285,19 @@ class MLPBlock(nn.Module):
         self.fc2 = nn.Linear(hidden_dim, embed_dim)
         self.dropout2 = nn.Dropout(dropout)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self,
+        x: torch.Tensor
+    ) -> torch.Tensor:
+        """
+        Forward pass for MLP block.
+
+        Args:
+            x (torch.Tensor): Input tensor (B, S, E).
+
+        Returns:
+            torch.Tensor: Output tensor (B, S, E).
+        """
         x = self.fc1(x)
         x = self.activation(x)
         x = self.dropout1(x)
@@ -193,15 +306,35 @@ class MLPBlock(nn.Module):
         return x
 
 
-# --- Transformer Encoder Block (PyTorch Version) ---
 class TransformerEncoderBlock(nn.Module):
     """
     Standard Transformer Encoder block (PyTorch).
+
+    Args:
+        embed_dim (int): Embedding dimension.
+        num_heads (int): Number of attention heads.
+        mlp_ratio (float): MLP expansion ratio.
+        attention_dropout (float): Dropout for attention.
+        mlp_dropout (float): Dropout for MLP.
     """
     def __init__(
-        self, embed_dim=64, num_heads=4, mlp_ratio=2.0,
-        attention_dropout=0.1, mlp_dropout=0.1
+        self,
+        embed_dim: int = 64,
+        num_heads: int = 4,
+        mlp_ratio: float = 2.0,
+        attention_dropout: float = 0.1,
+        mlp_dropout: float = 0.1
     ):
+        """
+        Initialize TransformerEncoderBlock.
+
+        Args:
+            embed_dim (int): Embedding dimension.
+            num_heads (int): Number of attention heads.
+            mlp_ratio (float): MLP expansion ratio.
+            attention_dropout (float): Dropout for attention.
+            mlp_dropout (float): Dropout for MLP.
+        """
         super().__init__()
         self.norm1 = nn.LayerNorm(embed_dim)
         self.attention = Attention(
@@ -216,11 +349,25 @@ class TransformerEncoderBlock(nn.Module):
             dropout=mlp_dropout
         )
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self,
+        x: torch.Tensor
+    ) -> torch.Tensor:
+        """
+        Forward pass for Transformer Encoder block.
+
+        Args:
+            x (torch.Tensor): Input tensor (B, S, E).
+
+        Returns:
+            torch.Tensor: Output tensor (B, S, E).
+        """
         residual = x
         x_norm = self.norm1(x)
         attn_out = self.attention(
-            query=x_norm, key=x_norm, value=x_norm
+            query=x_norm,
+            key=x_norm,
+            value=x_norm
         )
         x = residual + attn_out
         residual = x
@@ -230,7 +377,6 @@ class TransformerEncoderBlock(nn.Module):
         return x
 
 
-# --- Transformer Decoder Block (PyTorch Version) ---
 class TransformerDecoderBlock(nn.Module):
     """
     Standard Transformer Decoder block (PyTorch).
@@ -242,20 +388,39 @@ class TransformerDecoderBlock(nn.Module):
         dropout (float): General dropout rate.
     """
     def __init__(
-        self, embed_dim=64, num_heads=4, mlp_ratio=2.0, dropout=0.1
+        self,
+        embed_dim: int = 64,
+        num_heads: int = 4,
+        mlp_ratio: float = 2.0,
+        dropout: float = 0.1
     ):
+        """
+        Initialize TransformerDecoderBlock.
+
+        Args:
+            embed_dim (int): Embedding dimension.
+            num_heads (int): Number of attention heads.
+            mlp_ratio (float): MLP expansion ratio.
+            dropout (float): General dropout rate.
+        """
         super().__init__()
         self.norm1 = nn.LayerNorm(embed_dim)
         self.masked_self_attn = Attention(
-            embed_dim=embed_dim, num_heads=num_heads, dropout=dropout
+            embed_dim=embed_dim,
+            num_heads=num_heads,
+            dropout=dropout
         )
         self.norm2 = nn.LayerNorm(embed_dim)
         self.cross_attn = Attention(
-            embed_dim=embed_dim, num_heads=num_heads, dropout=dropout
+            embed_dim=embed_dim,
+            num_heads=num_heads,
+            dropout=dropout
         )
         self.norm3 = nn.LayerNorm(embed_dim)
         self.mlp = MLPBlock(
-            embed_dim=embed_dim, mlp_ratio=mlp_ratio, dropout=dropout
+            embed_dim=embed_dim,
+            mlp_ratio=mlp_ratio,
+            dropout=dropout
         )
         self.dropout = nn.Dropout(dropout)
 
@@ -266,16 +431,34 @@ class TransformerDecoderBlock(nn.Module):
         tgt_mask: Optional[torch.Tensor] = None,
         memory_mask: Optional[torch.Tensor] = None
     ) -> torch.Tensor:
+        """
+        Forward pass for Transformer Decoder block.
+
+        Args:
+            tgt (torch.Tensor): Target tensor (B, S_tgt, E).
+            memory (torch.Tensor): Encoder output (B, S_src, E).
+            tgt_mask (Optional[torch.Tensor]): Mask for target sequence.
+            memory_mask (Optional[torch.Tensor]): Mask for memory.
+
+        Returns:
+            torch.Tensor: Output tensor (B, S_tgt, E).
+        """
         residual = tgt
         tgt_norm = self.norm1(tgt)
         self_attn_out = self.masked_self_attn(
-            query=tgt_norm, key=tgt_norm, value=tgt_norm, attn_mask=tgt_mask
+            query=tgt_norm,
+            key=tgt_norm,
+            value=tgt_norm,
+            attn_mask=tgt_mask
         )
         tgt = residual + self.dropout(self_attn_out)
         residual = tgt
         tgt_norm = self.norm2(tgt)
         cross_attn_out = self.cross_attn(
-            query=tgt_norm, key=memory, value=memory, attn_mask=memory_mask
+            query=tgt_norm,
+            key=memory,
+            value=memory,
+            attn_mask=memory_mask
         )
         tgt = residual + self.dropout(cross_attn_out)
         residual = tgt
@@ -285,7 +468,6 @@ class TransformerDecoderBlock(nn.Module):
         return tgt
 
 
-# --- Test Block ---
 if __name__ == '__main__':
     logger.info("🧪 Testing PyTorch Transformer Modules (Encoder & Decoder)...")
     _B = 4
@@ -301,14 +483,19 @@ if __name__ == '__main__':
     causal_mask = torch.tril(torch.ones(_S_tgt, _S_tgt))
     logger.info("\n--- Testing Encoder Block ---")
     encoder_block = TransformerEncoderBlock(
-        embed_dim=_D, num_heads=_H, attention_dropout=0.1, mlp_dropout=0.1
+        embed_dim=_D,
+        num_heads=_H,
+        attention_dropout=0.1,
+        mlp_dropout=0.1
     )
     encoder_output = encoder_block(encoder_input)
     logger.info(f"Encoder Block Output Shape: {encoder_output.shape}")
     assert encoder_output.shape == (_B, _S_src, _D)
     logger.info("\n--- Testing Decoder Block ---")
     decoder_block = TransformerDecoderBlock(
-        embed_dim=_D, num_heads=_H, dropout=0.1
+        embed_dim=_D,
+        num_heads=_H,
+        dropout=0.1
     )
     decoder_output = decoder_block(
         tgt=decoder_input,
