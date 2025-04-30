@@ -50,7 +50,24 @@ def train_epoch(
     pad_token_id: int = PAD_TOKEN_ID
 ) -> float:
     """
-    Trains the model for one epoch. Adapts loss/forward pass for phases.
+    Train the model for one epoch.
+
+    Args:
+        model (nn.Module): The model to train.
+        dataloader (DataLoader): DataLoader for training data.
+        criterion (nn.Module): Loss function.
+        optimizer (optim.Optimizer): Optimizer.
+        device (torch.device): Device to use.
+        epoch_num (int): Current epoch number (0-based).
+        total_epochs (int): Total number of epochs.
+        wandb_run (Optional[Any]): Weights & Biases run object.
+        log_frequency (int): Frequency of logging to wandb.
+        gradient_clipping (Optional[float]): Max norm for gradients.
+        phase (int): Training phase (1, 2, or 3).
+        pad_token_id (int): Padding token id for phase 3.
+
+    Returns:
+        float: Average loss for the epoch.
     """
     model.train()
     total_loss = 0.0
@@ -84,13 +101,17 @@ def train_epoch(
             loss = criterion(outputs, labels)
         elif phase == 2:
             num_classes = outputs.shape[-1]
-            loss = criterion(outputs.reshape(-1, num_classes),
-                             labels.reshape(-1))
+            loss = criterion(
+                outputs.reshape(-1, num_classes),
+                labels.reshape(-1)
+            )
         elif phase == 3:
             decoder_target = labels[:, 1:]
             vocab_size = outputs.shape[-1]
-            loss = criterion(outputs.reshape(-1, vocab_size),
-                             decoder_target.reshape(-1))
+            loss = criterion(
+                outputs.reshape(-1, vocab_size),
+                decoder_target.reshape(-1)
+            )
         else:
             loss = torch.tensor(0.0, device=device, requires_grad=True)
 
@@ -133,7 +154,18 @@ def evaluate_model(
     pad_token_id: int = PAD_TOKEN_ID
 ) -> Dict[str, float]:
     """
-    Evaluates the model on a given dataset (validation or test).
+    Evaluate the model on a dataset.
+
+    Args:
+        model (nn.Module): The model to evaluate.
+        dataloader (DataLoader): DataLoader for evaluation data.
+        criterion (nn.Module): Loss function.
+        device (torch.device): Device to use.
+        phase (int): Evaluation phase (1, 2, or 3).
+        pad_token_id (int): Padding token id for phase 3.
+
+    Returns:
+        Dict[str, float]: Dictionary with 'val_loss' and 'val_accuracy'.
     """
     model.eval()
     total_loss = 0.0
@@ -162,8 +194,10 @@ def evaluate_model(
             elif phase == 2:
                 outputs = model(images)
                 num_classes = outputs.shape[-1]
-                loss = criterion(outputs.view(-1, num_classes),
-                                 labels.view(-1))
+                loss = criterion(
+                    outputs.view(-1, num_classes),
+                    labels.view(-1)
+                )
                 predicted = torch.argmax(outputs.data, 2)
                 mask = torch.ones_like(labels, dtype=torch.bool)
             elif phase == 3:
@@ -171,8 +205,10 @@ def evaluate_model(
                 decoder_target = labels[:, 1:]
                 outputs = model(images, decoder_input)
                 vocab_size = outputs.shape[-1]
-                loss = criterion(outputs.reshape(-1, vocab_size),
-                                 decoder_target.reshape(-1))
+                loss = criterion(
+                    outputs.reshape(-1, vocab_size),
+                    decoder_target.reshape(-1)
+                )
                 predicted = torch.argmax(outputs.data, -1)
                 mask = (decoder_target != pad_token_id)
             else:
@@ -234,7 +270,24 @@ def train_model(
     lr_scheduler: Optional[Any] = None,
 ) -> Dict[str, List[float]]:
     """
-    Orchestrates the overall model training process for PyTorch models.
+    Orchestrate the overall model training process.
+
+    Args:
+        model (nn.Module): The model to train.
+        train_dataloader (DataLoader): Training data loader.
+        optimizer (optim.Optimizer): Optimizer.
+        device (torch.device): Device to use.
+        epochs (int): Number of epochs.
+        model_save_dir (str | Path): Directory to save model.
+        config (dict): Configuration dictionary.
+        phase (int): Training phase (1, 2, or 3).
+        val_dataloader (Optional[DataLoader]): Validation data loader.
+        run_name (str): Name for the run.
+        wandb_run (Optional[Any]): Weights & Biases run object.
+        lr_scheduler (Optional[Any]): Learning rate scheduler.
+
+    Returns:
+        Dict[str, List[float]]: Training and validation metrics history.
     """
     logger.info(
         f"🚀 Starting PyTorch Model Training: Run='{run_name}', Phase={phase}"
@@ -242,7 +295,9 @@ def train_model(
     logger.info(f"   Epochs: {epochs}, Device: {device.type.upper()}")
     model.to(device)
 
-    pad_token_id = config.get('tokenizer', {}).get('pad_token_id', PAD_TOKEN_ID)
+    pad_token_id = config.get('tokenizer', {}).get(
+        'pad_token_id', PAD_TOKEN_ID
+    )
     if phase == 3:
         criterion = nn.CrossEntropyLoss(ignore_index=pad_token_id)
         logger.info(
@@ -254,7 +309,6 @@ def train_model(
         logger.info(f"Using standard CrossEntropyLoss for Phase {phase}.")
     criterion.to(device)
 
-    # --- 👇 Initialize metrics history dictionary ---
     metrics_history = {
         "avg_train_loss": [],
         "val_loss": [],
@@ -274,12 +328,19 @@ def train_model(
         epoch_start_time = time.time()
 
         avg_train_loss = train_epoch(
-            model=model, dataloader=train_dataloader, criterion=criterion,
-            optimizer=optimizer, device=device, epoch_num=epoch,
-            total_epochs=epochs, wandb_run=wandb_run, phase=phase,
+            model=model,
+            dataloader=train_dataloader,
+            criterion=criterion,
+            optimizer=optimizer,
+            device=device,
+            epoch_num=epoch,
+            total_epochs=epochs,
+            wandb_run=wandb_run,
+            phase=phase,
             log_frequency=100,
             gradient_clipping=config.get('training', {}).get(
-                'gradient_clipping'),
+                'gradient_clipping'
+            ),
             pad_token_id=pad_token_id
         )
         metrics_history["avg_train_loss"].append(avg_train_loss)
@@ -288,11 +349,19 @@ def train_model(
         val_metrics = {}
         if val_dataloader:
             val_metrics = evaluate_model(
-                model=model, dataloader=val_dataloader, criterion=criterion,
-                device=device, phase=phase, pad_token_id=pad_token_id
+                model=model,
+                dataloader=val_dataloader,
+                criterion=criterion,
+                device=device,
+                phase=phase,
+                pad_token_id=pad_token_id
             )
-            metrics_history["val_loss"].append(val_metrics.get("val_loss", float('nan')))
-            metrics_history["val_accuracy"].append(val_metrics.get("val_accuracy", float('nan')))
+            metrics_history["val_loss"].append(
+                val_metrics.get("val_loss", float('nan'))
+            )
+            metrics_history["val_accuracy"].append(
+                val_metrics.get("val_accuracy", float('nan'))
+            )
             log_str = (f"✅ Epoch {epoch+1}/{epochs} | Train Loss: "
                        f"{avg_train_loss:.4f} | ")
             for key, value in val_metrics.items():
@@ -317,9 +386,13 @@ def train_model(
                     logger.warning("⚠️ ReduceLROnPlateau needs val_loss.")
             else:
                 lr_scheduler.step()
-            metrics_history["learning_rate"].append(optimizer.param_groups[0]['lr'])
+            metrics_history["learning_rate"].append(
+                optimizer.param_groups[0]['lr']
+            )
         else:
-            metrics_history["learning_rate"].append(optimizer.param_groups[0]['lr'])
+            metrics_history["learning_rate"].append(
+                optimizer.param_groups[0]['lr']
+            )
 
         if wandb is not None and wandb_run is not None:
             try:
@@ -345,7 +418,6 @@ def train_model(
     except Exception as e:
         logger.error(f"❌ Failed to save final model: {e}", exc_info=True)
 
-    # --- 👇 Return the full history ---
     return metrics_history
 
 if __name__ == "__main__":
@@ -367,10 +439,21 @@ if __name__ == "__main__":
     _optim_p1 = optim.Adam(_model_p1.parameters(), lr=0.01)
     try:
         train_epoch(
-            _model_p1, _loader_p1, _crit_p12, _optim_p1, _device, 0, 1, phase=1
+            _model_p1,
+            _loader_p1,
+            _crit_p12,
+            _optim_p1,
+            _device,
+            0,
+            1,
+            phase=1
         )
         evaluate_model(
-            _model_p1, _loader_p1, _crit_p12, _device, phase=1
+            _model_p1,
+            _loader_p1,
+            _crit_p12,
+            _device,
+            phase=1
         )
         logger.info("✅ Phase 1 trainer calls OK.")
     except Exception as e:
@@ -392,10 +475,21 @@ if __name__ == "__main__":
     _optim_p2 = optim.Adam(_model_p2.parameters(), lr=0.01)
     try:
         train_epoch(
-            _model_p2, _loader_p2, _crit_p12, _optim_p2, _device, 0, 1, phase=2
+            _model_p2,
+            _loader_p2,
+            _crit_p12,
+            _optim_p2,
+            _device,
+            0,
+            1,
+            phase=2
         )
         evaluate_model(
-            _model_p2, _loader_p2, _crit_p12, _device, phase=2
+            _model_p2,
+            _loader_p2,
+            _crit_p12,
+            _device,
+            phase=2
         )
         logger.info("✅ Phase 2 trainer calls OK.")
     except Exception as e:
@@ -429,11 +523,22 @@ if __name__ == "__main__":
 
     try:
         train_epoch(
-            _model_p3, _loader_p3, _crit_p3, _optim_p3, _device, 0, 1,
-            phase=3, pad_token_id=PAD_TOKEN_ID
+            _model_p3,
+            _loader_p3,
+            _crit_p3,
+            _optim_p3,
+            _device,
+            0,
+            1,
+            phase=3,
+            pad_token_id=PAD_TOKEN_ID
         )
         evaluate_model(
-            _model_p3, _loader_p3, _crit_p3, _device, phase=3,
+            _model_p3,
+            _loader_p3,
+            _crit_p3,
+            _device,
+            phase=3,
             pad_token_id=PAD_TOKEN_ID
         )
         logger.info("✅ Phase 3 trainer calls OK.")
