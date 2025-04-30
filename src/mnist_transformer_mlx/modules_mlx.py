@@ -74,7 +74,7 @@ class PatchEmbeddingMLX(nn.Module):
 
 # --- 2. Attention Head (MLX Version) ---
 class AttentionHeadMLX(nn.Module):
-    """ Single head of self-attention (MLX). """
+    """ Single head of self/cross-attention with optional mask (MLX). """
     def __init__(self, embed_dim: int, head_dim: int, dropout: float = 0.0):
         super().__init__()
         self.head_dim = head_dim
@@ -84,58 +84,74 @@ class AttentionHeadMLX(nn.Module):
         self.v_proj = nn.Linear(embed_dim, head_dim)
         self.attn_dropout = nn.Dropout(p=dropout)
 
-    def __call__(
-        self, x_q: mx.array, x_kv: Optional[mx.array] = None
-    ) -> mx.array:
+    def __call__(self, q: mx.array, k: mx.array, v: mx.array, mask: Optional[mx.array] = None) -> mx.array:
         """
-        Forward pass for single head. Allows for self-attention (x_kv is None)
-        or cross-attention (x_kv is provided).
+        Computes scaled dot-product attention for a single head.
         Args:
-            x_q (mx.array): Input for Query projection (B, N_q, D).
-            x_kv (mx.array, optional): Input for Key/Value projection (B, N_kv, D).
+            q (mx.array): Query tensor of shape (B, N_q, D_embed).
+            k (mx.array): Key tensor of shape (B, N_kv, D_embed).
+            v (mx.array): Value tensor of shape (B, N_kv, D_embed).
+            mask (Optional[mx.array]): Boolean mask broadcastable to (B, N_q, N_kv). True = keep, False = mask.
         Returns:
-            mx.array: Output tensor for this head (B, N_q, head_dim).
+            mx.array: Output tensor after attention, shape (B, N_q, H_dim).
         """
-        if x_kv is None:
-            x_kv = x_q
-
-        B_q, N_q, C_q = x_q.shape
-        B_kv, N_kv, C_kv = x_kv.shape
-
-        q = self.q_proj(x_q)
-        k = self.k_proj(x_kv)
-        v = self.v_proj(x_kv)
-
-        attn_scores = (q @ k.transpose(0, 2, 1)) * self.scale
+        q_p = self.q_proj(q)
+        k_p = self.k_proj(k)
+        v_p = self.v_proj(v)
+        attn_scores = (q_p @ k_p.transpose(0, 2, 1)) * self.scale
+        if mask is not None:
+            attn_scores = mx.where(mask, attn_scores, mx.array(-1e9))
         attn_weights = mx.softmax(attn_scores, axis=-1)
         attn_weights = self.attn_dropout(attn_weights)
-        output = attn_weights @ v
+        output = attn_weights @ v_p
         return output
 
 # --- 3. Multi-Head Attention (MLX Version) ---
 class AttentionMLX(nn.Module):
-    """ Multi-Head Attention using AttentionHeadMLX (MLX). """
-    def __init__(
-        self, embed_dim: int = 64, num_heads: int = 4,
-        attention_dropout: float = 0.0, projection_dropout: float = 0.0
-    ):
+    """ Multi-Head Attention module (MLX). Handles self & cross attention + masking. """
+    def __init__(self, embed_dim: int = 64, num_heads: int = 4, dropout: float = 0.0, projection_dropout: float = 0.0):
         super().__init__()
         if embed_dim % num_heads != 0:
             raise ValueError("embed_dim must be divisible by num_heads")
         self.num_heads = num_heads
         self.head_dim = embed_dim // num_heads
-        self.heads = [
-            AttentionHeadMLX(embed_dim, self.head_dim, dropout=attention_dropout)
-            for _ in range(num_heads)
-        ]
+        self.q_proj = nn.Linear(embed_dim, embed_dim)
+        self.k_proj = nn.Linear(embed_dim, embed_dim)
+        self.v_proj = nn.Linear(embed_dim, embed_dim)
         self.proj = nn.Linear(embed_dim, embed_dim)
+        self.attn_dropout = nn.Dropout(p=dropout)
         self.proj_dropout = nn.Dropout(p=projection_dropout)
+        self.scale = float(self.head_dim) ** -0.5
 
-    def __call__(
-        self, x_q: mx.array, x_kv: Optional[mx.array] = None
-    ) -> mx.array:
-        head_outputs = [head(x_q, x_kv) for head in self.heads]
-        x = mx.concatenate(head_outputs, axis=-1)
+    def __call__(self, query: mx.array, key: mx.array, value: mx.array, mask: Optional[mx.array] = None) -> mx.array:
+        """
+        Computes multi-head scaled dot-product attention.
+        Args:
+            query (mx.array): Query tensor (B, N_q, C).
+            key (mx.array): Key tensor (B, N_kv, C).
+            value (mx.array): Value tensor (B, N_kv, C).
+            mask (Optional[mx.array]): Boolean mask broadcastable to (B, 1, N_q, N_kv) or (1, 1, N_q, N_kv).
+        Returns:
+            mx.array: Output tensor after attention, shape (B, N_q, C).
+        """
+        B, N_q, C = query.shape
+        _, N_kv, _ = key.shape
+        q = self.q_proj(query)
+        k = self.k_proj(key)
+        v = self.v_proj(value)
+        q = q.reshape(B, N_q, self.num_heads, self.head_dim).transpose(0, 2, 1, 3)
+        k = k.reshape(B, N_kv, self.num_heads, self.head_dim).transpose(0, 2, 1, 3)
+        v = v.reshape(B, N_kv, self.num_heads, self.head_dim).transpose(0, 2, 1, 3)
+        attn_scores = (q @ k.transpose(0, 1, 3, 2)) * self.scale
+        if mask is not None:
+            if mask.ndim == 2:
+                mask = mask[None, None, :, :]
+            elif mask.ndim == 3:
+                mask = mask[:, None, :, :]
+            attn_scores = mx.where(mask, attn_scores, mx.array(-1e9))
+        attn_weights = mx.softmax(attn_scores, axis=-1)
+        weighted_avg = attn_weights @ v
+        x = weighted_avg.transpose(0, 2, 1, 3).reshape(B, N_q, C)
         x = self.proj(x)
         x = self.proj_dropout(x)
         return x
@@ -165,34 +181,97 @@ class MLPBlockMLX(nn.Module):
 # --- 5. Transformer Encoder Block (MLX Version) ---
 class TransformerEncoderBlockMLX(nn.Module):
     """ Standard Transformer Encoder block (MLX). """
-    def __init__(
-        self, embed_dim: int = 64, num_heads: int = 4, mlp_ratio: float = 2.0,
-        attention_dropout: float = 0.1, mlp_dropout: float = 0.1
-    ):
+    def __init__(self, embed_dim: int = 64, num_heads: int = 4, mlp_ratio: float = 2.0, dropout: float = 0.1):
         super().__init__()
         self.norm1 = nn.LayerNorm(embed_dim)
+        # --- Pass correct arguments to AttentionMLX ---
         self.attention = AttentionMLX(
             embed_dim=embed_dim,
             num_heads=num_heads,
-            attention_dropout=attention_dropout
+            dropout=dropout,
+            projection_dropout=dropout
         )
+        # --- End Fix ---
         self.norm2 = nn.LayerNorm(embed_dim)
         self.mlp = MLPBlockMLX(
             embed_dim=embed_dim,
             mlp_ratio=mlp_ratio,
-            dropout=mlp_dropout
+            dropout=dropout
         )
+        self.dropout = nn.Dropout(p=dropout)
 
     def __call__(self, x: mx.array) -> mx.array:
         residual = x
         x_norm = self.norm1(x)
-        attn_out = self.attention(x_norm)
+        # --- Fix: Pass x_norm as query, key, value to self-attention ---
+        attn_out = self.attention(x_norm, x_norm, x_norm)
+        # --- End Fix ---
         x = residual + attn_out
         residual = x
         x_norm = self.norm2(x)
         mlp_out = self.mlp(x_norm)
         x = residual + mlp_out
         return x
+
+# --- 6. Transformer Decoder Block (MLX Version) ---
+class TransformerDecoderBlockMLX(nn.Module):
+    """ Standard Transformer Decoder block (MLX). """
+    def __init__(self, embed_dim: int = 64, num_heads: int = 4, mlp_ratio: float = 2.0, dropout: float = 0.1):
+        super().__init__()
+        self.norm1 = nn.LayerNorm(embed_dim)
+        # --- Pass correct arguments to AttentionMLX ---
+        self.masked_self_attn = AttentionMLX(
+            embed_dim=embed_dim, num_heads=num_heads,
+            dropout=dropout, projection_dropout=dropout
+        )
+        # --- End Fix ---
+        self.norm2 = nn.LayerNorm(embed_dim)
+        # --- Pass correct arguments to AttentionMLX ---
+        self.cross_attn = AttentionMLX(
+            embed_dim=embed_dim, num_heads=num_heads,
+            dropout=dropout, projection_dropout=dropout
+        )
+        # --- End Fix ---
+        self.norm3 = nn.LayerNorm(embed_dim)
+        self.mlp = MLPBlockMLX(
+            embed_dim=embed_dim, mlp_ratio=mlp_ratio, dropout=dropout
+        )
+        self.dropout = nn.Dropout(p=dropout)
+
+    def __call__(
+        self,
+        tgt: mx.array,
+        memory: mx.array,
+        tgt_mask: Optional[mx.array] = None,
+        memory_mask: Optional[mx.array] = None
+    ) -> mx.array:
+        """
+        Forward pass for a Transformer decoder block.
+        Args:
+            tgt (mx.array): Target sequence (B, SeqLen_tgt, D).
+            memory (mx.array): Encoder output (B, SeqLen_src, D).
+            tgt_mask (Optional[mx.array]): Mask for self-attention (causal mask).
+            memory_mask (Optional[mx.array]): Mask for cross-attention (padding mask).
+        Returns:
+            mx.array: Output tensor (B, SeqLen_tgt, D).
+        """
+        residual = tgt
+        tgt_norm = self.norm1(tgt)
+        self_attn_out = self.masked_self_attn(
+            query=tgt_norm, key=tgt_norm, value=tgt_norm, mask=tgt_mask
+        )
+        tgt = residual + self.dropout(self_attn_out)
+        residual = tgt
+        tgt_norm = self.norm2(tgt)
+        cross_attn_out = self.cross_attn(
+            query=tgt_norm, key=memory, value=memory, mask=memory_mask
+        )
+        tgt = residual + self.dropout(cross_attn_out)
+        residual = tgt
+        tgt_norm = self.norm3(tgt)
+        mlp_out = self.mlp(tgt_norm)
+        tgt = residual + self.dropout(mlp_out)
+        return tgt
 
 # --- Test Block ---
 if __name__ == '__main__':
@@ -241,12 +320,15 @@ if __name__ == '__main__':
 
     attn_module = AttentionMLX(embed_dim=_embed_dim, num_heads=_num_heads)
     mx.eval(attn_module.parameters())
-    attn_output = attn_module(patch_output)
+    # --- Corrected call for self-attention test ---
+    attn_output = attn_module(
+        query=patch_output, key=patch_output, value=patch_output, mask=None
+    )
+    # --- End Correction ---
     mx.eval(attn_output)
     if logger:
         logger.info(f"AttentionMLX module output shape: {attn_output.shape}")
-    assert attn_output.shape == patch_output.shape, \
-        "Attention module shape mismatch!"
+    assert attn_output.shape == patch_output.shape, "Attention module shape mismatch!"
 
     mlp_module = MLPBlockMLX(embed_dim=_embed_dim, mlp_ratio=_mlp_ratio)
     mx.eval(mlp_module.parameters())
