@@ -1,8 +1,9 @@
 # utils/run_utils.py
 # Copyright (c) 2025 Backprop Bunch Team (Yurii, Amy, Guillaume, Aygun)
-# Description: Utility functions for running experiments, including saving/plotting metrics.
+# Description: Utility functions for running experiments, including
+# saving/plotting metrics.
 # Created: 2025-04-28
-# Updated: 2025-04-29
+# Updated: 2025-04-30
 
 import os
 import json
@@ -14,9 +15,18 @@ from pathlib import Path
 from .logging import logger
 
 # --- Config Loading (Keep as is) ---
-def load_config(config_path: str = "config.yaml") -> dict | None:
+def load_config(
+    config_path: str = "config.yaml"
+) -> dict | None:
     """
     Loads configuration from a YAML file.
+
+    Args:
+        config_path (str): Path to the YAML config file.
+
+    Returns:
+        dict | None: Loaded configuration as a dictionary, or None if
+        loading fails.
     """
     logger.info(f"🔍 Loading configuration from: {config_path}")
     try:
@@ -27,10 +37,18 @@ def load_config(config_path: str = "config.yaml") -> dict | None:
     except Exception as e:
         logger.error(f"❌ Error loading config: {e}")
         return None
-    
-def format_num_words(num_words: int) -> str:
+
+def format_num_words(
+    num_words: int
+) -> str:
     """
     Formats large numbers for filenames.
+
+    Args:
+        num_words (int): Number to format.
+
+    Returns:
+        str: Formatted string (e.g., 1000 -> '1k', 1000000 -> '1M').
     """
     if num_words == -1:
         return "All"
@@ -40,7 +58,6 @@ def format_num_words(num_words: int) -> str:
         return f"{num_words // 1_000}k"
     return str(num_words)
 
-
 # --- Saving Metrics ---
 def save_metrics(
     metrics_history: Dict[str, List[float]],
@@ -49,6 +66,15 @@ def save_metrics(
 ) -> str | None:
     """
     Saves epoch metrics history to a JSON file.
+
+    Args:
+        metrics_history (Dict[str, List[float]]): Dictionary containing
+            lists of metric values per epoch.
+        save_dir (str | Path): Directory to save the JSON file.
+        filename (str): Name of the JSON file.
+
+    Returns:
+        str | None: Path to the saved file, or None if saving fails.
     """
     save_dir = Path(save_dir)
     save_dir.mkdir(parents=True, exist_ok=True)
@@ -74,8 +100,19 @@ def plot_metrics(
     filename: str = "training_metrics.png"
 ) -> str | None:
     """
-    Plots training and validation metrics (loss, accuracy) and saves the plot.
+    Plots training and validation metrics (loss, accuracy) and saves
+    the plot.
+
     Assumes keys like 'avg_train_loss', 'val_loss', 'val_accuracy'.
+
+    Args:
+        metrics_history (Dict[str, List[float]]): Dictionary containing
+            lists of metric values per epoch.
+        save_dir (str | Path): Directory to save the plot.
+        filename (str): Name of the plot file.
+
+    Returns:
+        str | None: Path to the saved plot, or None if plotting fails.
     """
     save_dir = Path(save_dir)
     save_dir.mkdir(parents=True, exist_ok=True)
@@ -162,10 +199,23 @@ def plot_metrics(
         plt.close(fig)
         return None
 
-def save_losses(losses: List[float], save_dir: str, 
-                filename: str = "training_losses.json") -> str | None:
-    '''Saves epoch losses to a JSON file.'''
-    if not os.path.isdir(save_dir):  # This might fail if dir creation raced
+def save_losses(
+    losses: List[float],
+    save_dir: str,
+    filename: str = "training_losses.json"
+) -> str | None:
+    """
+    Saves epoch losses to a JSON file.
+
+    Args:
+        losses (List[float]): List of loss values per epoch.
+        save_dir (str): Directory to save the JSON file.
+        filename (str): Name of the JSON file.
+
+    Returns:
+        str | None: Path to the saved file, or None if saving fails.
+    """
+    if not os.path.isdir(save_dir):
         os.makedirs(save_dir, exist_ok=True)
     loss_file = os.path.join(save_dir, filename)
     try:
@@ -177,10 +227,24 @@ def save_losses(losses: List[float], save_dir: str,
         logger.error(f"❌ Failed to save losses: {e}")
         return None
 
-def plot_losses(losses: List[float], save_dir: str,
-               filename: str = "training_loss.png") -> str | None:
-    '''Plots epoch losses and saves the plot.'''
-    if not losses: return None  # Maybe epoch_losses is empty?
+def plot_losses(
+    losses: List[float],
+    save_dir: str,
+    filename: str = "training_loss.png"
+) -> str | None:
+    """
+    Plots epoch losses and saves the plot.
+
+    Args:
+        losses (List[float]): List of loss values per epoch.
+        save_dir (str): Directory to save the plot.
+        filename (str): Name of the plot file.
+
+    Returns:
+        str | None: Path to the saved plot, or None if plotting fails.
+    """
+    if not losses:
+        return None
     if not os.path.isdir(save_dir):
         os.makedirs(save_dir, exist_ok=True)
     plot_file = os.path.join(save_dir, filename)
