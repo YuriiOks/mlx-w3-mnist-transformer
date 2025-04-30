@@ -18,6 +18,7 @@ import numpy as np
 import random
 import time
 from tqdm import tqdm
+import pickle
 
 # --- Add project root to sys.path ---
 scriPyTorch_dir = os.path.dirname(os.path.abspath(__file__))
@@ -38,7 +39,12 @@ from src.mnist_transformer.dataset import (
     get_mnist_transforms
 )
 from src.mnist_transformer.model import VisionTransformer, EncoderDecoderViT
-from src.mnist_transformer.trainer import train_model
+from src.mnist_transformer.trainer import (
+    train_model,
+    evaluate_model,
+    save_checkpoint_pt,
+    load_checkpoint_pt
+)
 
 from torchvision import datasets as datasets # Use alias to avoid confusion
 
@@ -319,20 +325,33 @@ def main():
     start_time = time.time()
 
     # --- Train and collect full metrics history ---
-    metrics_history = train_model(
-        model=model,
-        train_dataloader=train_dataloader,
-        val_dataloader=val_dataloader,
-        optimizer=optimizer,
-        device=device,
-        epochs=args.epochs,
-        model_save_dir=args.model_save_dir,
-        config=config,
-        phase=args.phase,
-        run_name=run.name if run else run_name,
-        wandb_run=run,
-        lr_scheduler=lr_scheduler
-    )
+    start_epoch = 0
+    metrics_history = {"avg_train_loss": [], "val_loss": [], "val_accuracy": [], "learning_rate": []}
+    run_save_path = Path(args.model_save_dir) / (run.name if run else run_name)
+    if args.resume:
+         model, optimizer, lr_scheduler, start_epoch, metrics_history = load_checkpoint_pt(
+              model, optimizer, lr_scheduler, run_save_path, device
+         )
+    epochs_to_run = args.epochs - start_epoch
+    if epochs_to_run <= 0:
+        logger.info("Training already completed based on checkpoint.")
+    else:
+        logger.info(f"Training from epoch {start_epoch} for {epochs_to_run} more epochs.")
+        metrics_history_update = train_model(
+            model=model,
+            train_dataloader=train_dataloader,
+            val_dataloader=val_dataloader,
+            optimizer=optimizer,
+            device=device,
+            epochs=epochs_to_run,
+            model_save_dir=args.model_save_dir,
+            config=config,
+            phase=args.phase,
+            run_name=run.name if run else run_name,
+            wandb_run=run,
+            lr_scheduler=lr_scheduler
+        )
+        metrics_history = metrics_history_update
 
     training_time = time.time() - start_time
     logger.info(f"Total Training Time: {training_time:.2f} seconds")
