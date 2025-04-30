@@ -37,7 +37,8 @@ try:
     TOKENIZER_AVAILABLE = True
 except ImportError:
     logger.error(
-        "❌ Could not import tokenizer_utils. Phase 3 sequence generation will fail."
+        "❌ Could not import tokenizer_utils. Phase 3 sequence generation "
+        "will fail."
     )
     TOKENIZER_AVAILABLE = False
     PAD_TOKEN_ID, START_TOKEN_ID, END_TOKEN_ID = 0, 1, 2
@@ -67,7 +68,10 @@ digit_augmentation_transform = transforms.Compose([
     ], p=0.4)
 ])
 
-def get_mnist_transforms(image_size: int = 28, augment: bool = False):
+def get_mnist_transforms(
+    image_size: int = 28,
+    augment: bool = False
+) -> transforms.Compose:
     """
     Returns standard MNIST transforms (Resize, ToTensor, Normalize).
     Optionally includes basic augmentation for Phase 1.
@@ -75,18 +79,23 @@ def get_mnist_transforms(image_size: int = 28, augment: bool = False):
     Args:
         image_size (int): Size of the output image.
         augment (bool): Whether to apply basic augmentation.
+
     Returns:
         transforms.Compose: Composed transform for MNIST.
     """
-
     transform_list = []
     if augment and image_size == 28:
         transform_list.append(
-            transforms.RandomAffine(degrees=10, translate=(0.1, 0.1))
+            transforms.RandomAffine(
+                degrees=10,
+                translate=(0.1, 0.1)
+            )
         )
         logger.debug("Applying basic augmentation for standard MNIST.")
     if image_size != 28:
-        transform_list.append(transforms.Resize((image_size, image_size)))
+        transform_list.append(
+            transforms.Resize((image_size, image_size))
+        )
     transform_list.append(transforms.ToTensor())
     transform_list.append(transforms.Normalize(MNIST_MEAN, MNIST_STD))
     return transforms.Compose(transform_list)
@@ -96,31 +105,42 @@ def get_mnist_dataset(
     data_dir: str | Path = DEFAULT_DATA_DIR,
     transform: Optional[transforms.Compose] = None
 ) -> Optional[Dataset]:
-    """ Loads the standard MNIST dataset using torchvision.
+    """
+    Loads the standard MNIST dataset using torchvision.
+
     Args:
-        train (bool): Whether to load the training set (True) or test set (False).
+        train (bool): Whether to load the training set (True) or test set
+            (False).
         data_dir (str | Path): Directory to save/load the dataset.
         transform (Optional[transforms.Compose]): Transformations to apply.
-    Returns:
-        Optional[Dataset]: Loaded MNIST dataset.
-    """
 
+    Returns:
+        Optional[Dataset]: Loaded MNIST dataset or None if failed.
+    """
     split_name = "Train" if train else "Test"
     if transform is None:
-        transform = get_mnist_transforms(image_size=28, augment=train)
+        transform = get_mnist_transforms(
+            image_size=28,
+            augment=train
+        )
     logger.info(f"💾 Loading standard MNIST {split_name} dataset...")
     logger.info(f"   Data directory: {data_dir}")
     try:
         dataset = datasets.MNIST(
-            root=data_dir, train=train, download=True, transform=transform
+            root=data_dir,
+            train=train,
+            download=True,
+            transform=transform
         )
         logger.info(
-            f"✅ Standard MNIST {split_name} dataset loaded ({len(dataset)} samples)."
+            f"✅ Standard MNIST {split_name} dataset loaded "
+            f"({len(dataset)} samples)."
         )
         return dataset
     except Exception as e:
         logger.error(
-            f"❌ Failed loading standard MNIST {split_name}: {e}", exc_info=True
+            f"❌ Failed loading standard MNIST {split_name}: {e}",
+            exc_info=True
         )
         return None
 
@@ -130,14 +150,18 @@ def generate_2x2_grid_image_pt(
 ) -> Optional[Tuple[torch.Tensor, List[int]]]:
     """
     Generates a 2x2 grid image tensor from the MNIST dataset.
-    Returns a tensor of shape (1, 56, 56) and a list of labels.
+
+    Returns a tensor of shape (1, output_size, output_size) and a list of
+    labels.
+
     Args:
         mnist_dataset (Dataset): Base MNIST dataset.
         output_size (int): Size of the output grid image.
-    Returns:
-        Optional[Tuple[torch.Tensor, List[int]]]: Grid image tensor and labels.
-    """
 
+    Returns:
+        Optional[Tuple[torch.Tensor, List[int]]]: Grid image tensor and labels,
+        or (None, None) if failed.
+    """
     if len(mnist_dataset) < 4:
         return None
     indices = random.sample(range(len(mnist_dataset)), 4)
@@ -153,7 +177,8 @@ def generate_2x2_grid_image_pt(
             )
             return None, None
         grid_image = torch.zeros(
-            (1, output_size, output_size), dtype=images[0].dtype
+            (1, output_size, output_size),
+            dtype=images[0].dtype
         )
         grid_image[:, 0:28, 0:28] = images[0]
         grid_image[:, 0:28, 28:56] = images[1]
@@ -162,14 +187,25 @@ def generate_2x2_grid_image_pt(
         return grid_image, labels
     except Exception as e:
         logger.error(
-            f"❌ Error generating 2x2 grid tensor: {e}", exc_info=True
+            f"❌ Error generating 2x2 grid tensor: {e}",
+            exc_info=True
         )
         return None, None
 
 class MNISTGridDataset(Dataset):
-    """ PyTorch Dataset generating 2x2 grid MNIST images and labels. """
+    """
+    PyTorch Dataset generating 2x2 grid MNIST images and labels.
+
+    Args:
+        base_mnist_dataset (Dataset): The base MNIST dataset.
+        length (int): Number of synthetic samples to generate.
+        grid_size (int): Size of the output grid image (default: 56).
+    """
     def __init__(
-        self, base_mnist_dataset: Dataset, length: int, grid_size: int = 56
+        self,
+        base_mnist_dataset: Dataset,
+        length: int,
+        grid_size: int = 56
     ):
         self.base_dataset = base_mnist_dataset
         self.length = length
@@ -181,22 +217,34 @@ class MNISTGridDataset(Dataset):
             f"{grid_size}x{grid_size} images."
         )
 
-    def __len__(self):
-        """ Returns the length of the dataset. """
+    def __len__(self) -> int:
+        """Returns the length of the dataset."""
         return self.length
 
-    def __getitem__(self, idx):
-        grid_image, labels = generate_2x2_grid_image_pt(
-            self.base_dataset, self.grid_size
-        )
+    def __getitem__(
+        self,
+        idx: int
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Generates a 2x2 grid image and returns it along with the labels.
+
         If grid generation fails, returns a zero tensor and empty labels.
+
+        Args:
+            idx (int): Index (ignored, as samples are generated randomly).
+
+        Returns:
+            Tuple[torch.Tensor, torch.Tensor]: Grid image and labels tensor.
         """
+        grid_image, labels = generate_2x2_grid_image_pt(
+            self.base_dataset,
+            self.grid_size
+        )
         if grid_image is None:
             logger.warning("Retrying grid image generation in __getitem__...")
             grid_image, labels = generate_2x2_grid_image_pt(
-                self.base_dataset, self.grid_size
+                self.base_dataset,
+                self.grid_size
             )
             if grid_image is None:
                 logger.error("Failed grid generation after retry!")
@@ -215,6 +263,7 @@ def generate_dynamic_digit_image_pt(
 ) -> Optional[Tuple[torch.Tensor, List[int]]]:
     """
     Generates image tensor with 0-max_digits placed randomly.
+
     Applies augmentation to individual digits before placement.
     Returns canvas tensor (unnormalized, 0-1 range) and ordered labels.
 
@@ -223,17 +272,17 @@ def generate_dynamic_digit_image_pt(
         canvas_size (int): Size of the output canvas.
         max_digits (int): Maximum number of digits to place.
         augment_digits (bool): Whether to apply augmentation.
+
     Returns:
         Tuple[torch.Tensor, List[int]]: Canvas tensor and ordered labels.
     """
-
     num_base_images = len(base_mnist_pil_dataset)
     canvas_np = np.zeros((canvas_size, canvas_size), dtype=np.float32)
     placed_boxes = []
     placed_positions = []
     num_digits = random.randint(0, max_digits)
     if num_digits == 0:
-        return torch.from_numpy(canvas_np).unsqueeze(0), [] 
+        return torch.from_numpy(canvas_np).unsqueeze(0), []
     indices = random.sample(range(num_base_images), num_digits)
     for i in indices:
         digit_pil, digit_label = base_mnist_pil_dataset[i]
@@ -285,9 +334,20 @@ def generate_dynamic_digit_image_pt(
     return canvas_tensor, ordered_labels
 
 class MNISTDynamicDataset(Dataset):
-    """ PyTorch Dataset generating dynamic MNIST images and target sequences. """
+    """
+    PyTorch Dataset generating dynamic MNIST images and target sequences.
+
+    Args:
+        base_mnist_pil_dataset (Dataset): Base MNIST dataset (PIL).
+        length (int): Number of synthetic samples to generate.
+        config (Dict): Configuration dictionary.
+        use_augmentation (bool): Whether to use digit augmentation.
+    """
     def __init__(
-        self, base_mnist_pil_dataset: Dataset, length: int, config: Dict,
+        self,
+        base_mnist_pil_dataset: Dataset,
+        length: int,
+        config: Dict,
         use_augmentation: bool = True
     ):
         self.base_dataset_pil = base_mnist_pil_dataset
@@ -299,7 +359,9 @@ class MNISTDynamicDataset(Dataset):
         self.max_digits = cfg.get('max_digits_phase3', 5)
         self.max_seq_len = cfg.get('max_seq_len', 10)
         self.pad_token_id = tokenizer_cfg.get('pad_token_id', PAD_TOKEN_ID)
-        self.start_token_id = tokenizer_cfg.get('start_token_id', START_TOKEN_ID)
+        self.start_token_id = tokenizer_cfg.get(
+            'start_token_id', START_TOKEN_ID
+        )
         self.end_token_id = tokenizer_cfg.get('end_token_id', END_TOKEN_ID)
         self.final_transform = transforms.Compose([
             transforms.Normalize(MNIST_MEAN, MNIST_STD)
@@ -310,19 +372,31 @@ class MNISTDynamicDataset(Dataset):
             f"{self.canvas_size}x{self.canvas_size} images."
         )
 
-    def __len__(self):
-        """ Returns the length of the dataset. """
+    def __len__(self) -> int:
+        """Returns the length of the dataset."""
         return self.length
 
-    def __getitem__(self, idx):
-        canvas_tensor, ordered_labels = generate_dynamic_digit_image_pt(
-            self.base_dataset_pil, self.canvas_size, self.max_digits,
-            self.use_augmentation
-        )
+    def __getitem__(
+        self,
+        idx: int
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Generates a dynamic image and returns it along with the labels.
+
         If generation fails, returns a zero tensor and empty labels.
+
+        Args:
+            idx (int): Index (ignored, as samples are generated randomly).
+
+        Returns:
+            Tuple[torch.Tensor, torch.Tensor]: Image and target sequence tensor.
         """
+        canvas_tensor, ordered_labels = generate_dynamic_digit_image_pt(
+            self.base_dataset_pil,
+            self.canvas_size,
+            self.max_digits,
+            self.use_augmentation
+        )
         if canvas_tensor is None:
             logger.error("Failed dynamic image generation in getitem!")
             canvas_tensor = torch.zeros((1, self.canvas_size, self.canvas_size))
@@ -334,8 +408,11 @@ class MNISTDynamicDataset(Dataset):
             target_sequence = []
         else:
             target_sequence = labels_to_sequence(
-                ordered_labels, self.max_seq_len,
-                self.start_token_id, self.end_token_id, self.pad_token_id
+                ordered_labels,
+                self.max_seq_len,
+                self.start_token_id,
+                self.end_token_id,
+                self.pad_token_id
             )
         target_sequence_tensor = torch.tensor(target_sequence, dtype=torch.long)
         final_image_tensor = self.final_transform(canvas_tensor)
@@ -349,15 +426,16 @@ def get_dataloader(
 ) -> DataLoader:
     """
     Creates a DataLoader for the given dataset.
+
     Args:
         dataset (Dataset): The dataset to load.
         batch_size (int): Batch size for the DataLoader.
         shuffle (bool): Whether to shuffle the dataset.
         num_workers (int): Number of worker threads for loading data.
+
     Returns:
         DataLoader: DataLoader for the dataset.
     """
-
     pin_memory = torch.cuda.is_available() and num_workers > 0
     logger.info(
         f"📦 Creating DataLoader: batch_size={batch_size}, "
@@ -365,8 +443,11 @@ def get_dataloader(
         f"pin_memory={pin_memory}"
     )
     return DataLoader(
-        dataset=dataset, batch_size=batch_size, shuffle=shuffle,
-        num_workers=num_workers, pin_memory=pin_memory,
+        dataset=dataset,
+        batch_size=batch_size,
+        shuffle=shuffle,
+        num_workers=num_workers,
+        pin_memory=pin_memory,
         persistent_workers=True if num_workers > 0 else False,
         drop_last=False
     )
@@ -376,6 +457,13 @@ if __name__ == "__main__":
     config = load_config(Path(project_root) / "config.yaml") or {}
     import matplotlib.pyplot as plt
     def imshow(img_tensor, title=''):
+        """
+        Utility to display a tensor image using matplotlib.
+
+        Args:
+            img_tensor (torch.Tensor): Image tensor.
+            title (str): Title for the plot.
+        """
         mean = torch.tensor(MNIST_MEAN)
         std = torch.tensor(MNIST_STD)
         img_tensor = img_tensor.cpu()
@@ -390,13 +478,22 @@ if __name__ == "__main__":
     if 'datasets' in globals():
         try:
             base_train_pil = datasets.MNIST(
-                root=DEFAULT_DATA_DIR, train=True, download=True, transform=None
+                root=DEFAULT_DATA_DIR,
+                train=True,
+                download=True,
+                transform=None
             )
         except Exception as e:
             logger.error(f"Failed to load base PIL MNIST: {e}")
     logger.info("\n--- Testing Phase 1 (Standard MNIST) ---")
-    p1_transform = get_mnist_transforms(image_size=28, augment=False)
-    p1_train_data = get_mnist_dataset(train=True, transform=p1_transform)
+    p1_transform = get_mnist_transforms(
+        image_size=28,
+        augment=False
+    )
+    p1_train_data = get_mnist_dataset(
+        train=True,
+        transform=p1_transform
+    )
     if p1_train_data:
         logger.info("✅ Phase 1 Dataset Loaded.")
     else:
@@ -405,7 +502,8 @@ if __name__ == "__main__":
     if p1_train_data:
         try:
             p2_dataset = MNISTGridDataset(
-                base_mnist_dataset=p1_train_data, length=10
+                base_mnist_dataset=p1_train_data,
+                length=10
             )
             p2_img, p2_labels = p2_dataset[0]
             logger.info(
@@ -425,7 +523,10 @@ if __name__ == "__main__":
             logger.info("🧪 Testing Phase 3 WITHOUT augmentation...")
             try:
                 p3_dataset_noaug = MNISTDynamicDataset(
-                    base_train_pil, length=4, config=config, use_augmentation=False
+                    base_train_pil,
+                    length=4,
+                    config=config,
+                    use_augmentation=False
                 )
                 img_noaug, seq_noaug = p3_dataset_noaug[0]
                 logger.info(
@@ -439,7 +540,10 @@ if __name__ == "__main__":
             logger.info("🧪 Testing Phase 3 WITH augmentation...")
             try:
                 p3_dataset_aug = MNISTDynamicDataset(
-                    base_train_pil, length=4, config=config, use_augmentation=True
+                    base_train_pil,
+                    length=4,
+                    config=config,
+                    use_augmentation=True
                 )
                 img_aug, seq_aug = p3_dataset_aug[0]
                 logger.info(
@@ -471,7 +575,8 @@ if __name__ == "__main__":
                 plt.tight_layout(rect=[0, 0.03, 1, 0.95])
                 plt.show()
                 logger.info(
-                    "Displaying Phase 3 sample plot. Close the plot window to continue..."
+                    "Displaying Phase 3 sample plot. Close the plot window "
+                    "to continue..."
                 )
                 logger.info("✅ Phase 3 Dataset testing seems OK (check plot).")
             except NameError:
