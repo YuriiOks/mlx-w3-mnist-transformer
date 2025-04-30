@@ -83,18 +83,18 @@ def setup_logging(
     if _logging_initialized:
         return
 
-    logger.info(f"⚙️  Configuring {LOGGER_NAME} logging...")
+    print(f"⚙️  Configuring {LOGGER_NAME} logging...")
     level = getattr(logging, LOG_LEVEL, logging.INFO)
     logger.setLevel(level)
 
     if logger.hasHandlers():
-        logger.info("  Clearing existing handlers...")
+        print("  Clearing existing handlers...")
         for handler in logger.handlers[:]:
             logger.removeHandler(handler)
             handler.close()
     logger.propagate = False
 
-    logger.info(f"  Logger '{LOGGER_NAME}' level set to: {LOG_LEVEL}")
+    print(f"  Logger '{LOGGER_NAME}' level set to: {LOG_LEVEL}")
 
     # --- File Handler (No Color) ---
     if LOG_FILE_ENABLED:
@@ -114,9 +114,9 @@ def setup_logging(
             fh.setLevel(level)
             fh.setFormatter(file_formatter)
             logger.addHandler(fh)
-            logger.info(f"  ✅ File handler added: {log_path}")
+            print(f"  ✅ File handler added: {log_path}")
         except Exception as e:
-            logger.error(f"  ❌ ERROR setting up file log: {e}")
+            print(f"  ❌ ERROR setting up file log: {e}")
 
     # --- Console Handler (WITH Color if available) ---
     if LOG_CONSOLE_ENABLED:
@@ -130,22 +130,22 @@ def setup_logging(
                 level_styles=LEVEL_STYLES,
                 field_styles=FIELD_STYLES
             )
-            logger.info("  🎨 Applying colored formatter to console handler.")
+            print("  🎨 Applying colored formatter to console handler.")
         else:
             console_formatter = logging.Formatter(
                 LOG_FORMAT,
                 datefmt=DATE_FORMAT
             )
-            logger.info("  Falling back to standard console formatter.")
+            print("  Falling back to standard console formatter.")
 
         ch.setFormatter(console_formatter)
         logger.addHandler(ch)
-        logger.info("  ✅ Console handler added.")
+        print("  ✅ Console handler added.")
 
     if logger.hasHandlers():
         logger.info("🎉 Logging system initialized!")
     else:
-        logger.warning(f"⚠️ Warning: No handlers configured for {LOGGER_NAME}.")
+        print(f"⚠️ Warning: No handlers configured for {LOGGER_NAME}.")
     _logging_initialized = True
 
 if (
