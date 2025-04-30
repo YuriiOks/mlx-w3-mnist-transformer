@@ -81,7 +81,7 @@ training:
     batch_size: 64
     base_lr: 1e-4
     weight_decay: 0.05
-    num_train_samples: 100000 # Example: Generate more for Phase 3
+    num_train_samples: 60000 # Example: Generate more for Phase 3
     num_val_samples: 10000    # Keep validation reasonable
 
   # General settings
