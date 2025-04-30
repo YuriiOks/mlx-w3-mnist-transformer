@@ -71,7 +71,14 @@ def get_mnist_transforms(image_size: int = 28, augment: bool = False):
     """
     Returns standard MNIST transforms (Resize, ToTensor, Normalize).
     Optionally includes basic augmentation for Phase 1.
+
+    Args:
+        image_size (int): Size of the output image.
+        augment (bool): Whether to apply basic augmentation.
+    Returns:
+        transforms.Compose: Composed transform for MNIST.
     """
+
     transform_list = []
     if augment and image_size == 28:
         transform_list.append(
@@ -89,7 +96,15 @@ def get_mnist_dataset(
     data_dir: str | Path = DEFAULT_DATA_DIR,
     transform: Optional[transforms.Compose] = None
 ) -> Optional[Dataset]:
-    """ Loads the standard MNIST dataset using torchvision. """
+    """ Loads the standard MNIST dataset using torchvision.
+    Args:
+        train (bool): Whether to load the training set (True) or test set (False).
+        data_dir (str | Path): Directory to save/load the dataset.
+        transform (Optional[transforms.Compose]): Transformations to apply.
+    Returns:
+        Optional[Dataset]: Loaded MNIST dataset.
+    """
+
     split_name = "Train" if train else "Test"
     if transform is None:
         transform = get_mnist_transforms(image_size=28, augment=train)
@@ -113,7 +128,16 @@ def generate_2x2_grid_image_pt(
     mnist_dataset: Dataset,
     output_size: int = 56
 ) -> Optional[Tuple[torch.Tensor, List[int]]]:
-    """ Generates a single 2x2 grid image (PyTorch Tensor) and labels. """
+    """
+    Generates a 2x2 grid image tensor from the MNIST dataset.
+    Returns a tensor of shape (1, 56, 56) and a list of labels.
+    Args:
+        mnist_dataset (Dataset): Base MNIST dataset.
+        output_size (int): Size of the output grid image.
+    Returns:
+        Optional[Tuple[torch.Tensor, List[int]]]: Grid image tensor and labels.
+    """
+
     if len(mnist_dataset) < 4:
         return None
     indices = random.sample(range(len(mnist_dataset)), 4)
@@ -143,7 +167,7 @@ def generate_2x2_grid_image_pt(
         return None, None
 
 class MNISTGridDataset(Dataset):
-    """ PyTorch Dataset generating 2x2 MNIST grid images on the fly. """
+    """ PyTorch Dataset generating 2x2 grid MNIST images and labels. """
     def __init__(
         self, base_mnist_dataset: Dataset, length: int, grid_size: int = 56
     ):
@@ -158,12 +182,17 @@ class MNISTGridDataset(Dataset):
         )
 
     def __len__(self):
+        """ Returns the length of the dataset. """
         return self.length
 
     def __getitem__(self, idx):
         grid_image, labels = generate_2x2_grid_image_pt(
             self.base_dataset, self.grid_size
         )
+        """
+        Generates a 2x2 grid image and returns it along with the labels.
+        If grid generation fails, returns a zero tensor and empty labels.
+        """
         if grid_image is None:
             logger.warning("Retrying grid image generation in __getitem__...")
             grid_image, labels = generate_2x2_grid_image_pt(
@@ -188,7 +217,16 @@ def generate_dynamic_digit_image_pt(
     Generates image tensor with 0-max_digits placed randomly.
     Applies augmentation to individual digits before placement.
     Returns canvas tensor (unnormalized, 0-1 range) and ordered labels.
+
+    Args:
+        base_mnist_pil_dataset (Dataset): Base MNIST dataset (PIL).
+        canvas_size (int): Size of the output canvas.
+        max_digits (int): Maximum number of digits to place.
+        augment_digits (bool): Whether to apply augmentation.
+    Returns:
+        Tuple[torch.Tensor, List[int]]: Canvas tensor and ordered labels.
     """
+
     num_base_images = len(base_mnist_pil_dataset)
     canvas_np = np.zeros((canvas_size, canvas_size), dtype=np.float32)
     placed_boxes = []
@@ -273,6 +311,7 @@ class MNISTDynamicDataset(Dataset):
         )
 
     def __len__(self):
+        """ Returns the length of the dataset. """
         return self.length
 
     def __getitem__(self, idx):
@@ -280,6 +319,10 @@ class MNISTDynamicDataset(Dataset):
             self.base_dataset_pil, self.canvas_size, self.max_digits,
             self.use_augmentation
         )
+        """
+        Generates a dynamic image and returns it along with the labels.
+        If generation fails, returns a zero tensor and empty labels.
+        """
         if canvas_tensor is None:
             logger.error("Failed dynamic image generation in getitem!")
             canvas_tensor = torch.zeros((1, self.canvas_size, self.canvas_size))
@@ -304,7 +347,17 @@ def get_dataloader(
     shuffle: bool = True,
     num_workers: int = 0
 ) -> DataLoader:
-    """ Creates a DataLoader for the given dataset. """
+    """
+    Creates a DataLoader for the given dataset.
+    Args:
+        dataset (Dataset): The dataset to load.
+        batch_size (int): Batch size for the DataLoader.
+        shuffle (bool): Whether to shuffle the dataset.
+        num_workers (int): Number of worker threads for loading data.
+    Returns:
+        DataLoader: DataLoader for the dataset.
+    """
+
     pin_memory = torch.cuda.is_available() and num_workers > 0
     logger.info(
         f"📦 Creating DataLoader: batch_size={batch_size}, "
