@@ -3,7 +3,7 @@
 # Copyright (c) 2025 Backprop Bunch Team (Yurii, Amy, Guillaume, Aygun)
 # Description: Main script to train the ViT model on MNIST using MLX.
 # Created: 2025-04-28
-# Updated: 2025-04-28
+# Updated: 2025-04-30
 
 import os
 import sys
@@ -28,14 +28,17 @@ if project_root not in sys.path:
 
 # --- Project-specific imports ---
 from utils import (
-    logger, load_config, save_losses, plot_losses
+    logger, load_config, save_metrics, plot_metrics
 )
 from src.mnist_transformer_mlx.dataset_mlx import (
     get_mnist_data_arrays,
     MNISTGridDatasetMLX,
-    MNISTDynamicDatasetMLX
+    MNISTDynamicDatasetMLX,
+    numpy_normalize
 )
-from src.mnist_transformer_mlx.model_mlx import VisionTransformerMLX
+from src.mnist_transformer_mlx.model_mlx import (
+    VisionTransformerMLX, EncoderDecoderViTMLX
+)
 from src.mnist_transformer_mlx.trainer_mlx import train_model_mlx
 
 # W&B Import
@@ -45,63 +48,83 @@ except ImportError:
     logger.warning("⚠️ wandb not installed. Experiment tracking disabled.")
     wandb = None
 
-# --- Argument Parsing ---
 def parse_args(config: dict):
-    """ Parses command-line arguments, using config for defaults (MLX). """
+    """
+    Parses command-line arguments, using config for defaults (MLX version).
+
+    Args:
+        config (dict): Configuration dictionary loaded from YAML.
+
+    Returns:
+        argparse.Namespace: Parsed arguments with defaults from config.
+    """
     parser = argparse.ArgumentParser(
         description="Train MNIST Vision Transformer (MLX)."
     )
-
-    parser.add_argument('--phase', type=int, default=1, choices=[1, 2],
-                        help='Training phase (1: single digit, 2: 2x2 grid).')
-    parser.add_argument('--config-path', type=str, default='config.yaml',
-                        help='Path to config file.')
+    parser.add_argument(
+        '--phase', type=int, default=1, choices=[1, 2, 3],
+        help='Training phase (1: single, 2: 2x2 grid, 3: dynamic seq).'
+    )
+    parser.add_argument(
+        '--config-path', type=str, default='config.yaml',
+        help='Path to config file.'
+    )
 
     temp_args, _ = parser.parse_known_args()
     phase = temp_args.phase
     train_cfg_key = f"phase{phase}"
-    train_cfg = config.get("training", {}).get(train_cfg_key, {})
-    general_train_cfg = config.get("training", {})
+    train_cfg = config.get("training", {}).get(
+        train_cfg_key, config.get("training", {})
+    )
 
     model_cfg = config.get('model', {})
     dataset_cfg = config.get('dataset', {})
     paths_cfg = config.get('paths', {})
     eval_cfg = config.get('evaluation', {})
+    tokenizer_cfg = config.get('tokenizer', {})
 
-    parser.add_argument('--epochs', type=int,
-                        default=train_cfg.get('epochs',
-                        general_train_cfg.get('phase1_epochs', 10)),
-                        help='Number of training epochs.')
-    parser.add_argument('--batch-size', type=int,
-                        default=train_cfg.get('batch_size',
-                        general_train_cfg.get('phase1_batch_size', 128)),
-                        help='Training batch size.')
-    parser.add_argument('--lr', type=float,
-                        default=train_cfg.get('base_lr',
-                        general_train_cfg.get('phase1_base_lr', 1e-3)),
-                        help='Base learning rate.')
-    parser.add_argument('--wd', type=float,
-                        default=train_cfg.get('weight_decay',
-                        general_train_cfg.get('phase1_weight_decay', 0.03)),
-                        help='Weight decay for optimizer.')
-
-    parser.add_argument('--model-save-dir', type=str,
-                        default=paths_cfg.get('model_save_dir',
-                        'models/mnist_vit'),
-                        help='Base directory to save models.')
-
-    parser.add_argument('--wandb-project', type=str,
-                        default='mnist-vit-transformer-mlx',
-                        help='W&B project name.')
-    parser.add_argument('--wandb-entity', type=str, default=None,
-                        help='W&B entity.')
-    parser.add_argument('--wandb-run-name', type=str, default=None,
-                        help='Custom W&B run name.')
-    parser.add_argument('--no-wandb', action='store_true', default=False,
-                        help='Disable W&B logging.')
-
-    parser.add_argument('--seed', type=int, default=42,
-                        help='Random seed.')
+    parser.add_argument(
+        '--epochs', type=int, default=train_cfg.get('epochs', 10),
+        help='Number of training epochs.'
+    )
+    parser.add_argument(
+        '--batch-size', type=int, default=train_cfg.get('batch_size', 128),
+        help='Training batch size.'
+    )
+    parser.add_argument(
+        '--lr', type=float, default=train_cfg.get('base_lr', 1e-3),
+        help='Base learning rate.'
+    )
+    parser.add_argument(
+        '--wd', type=float, default=train_cfg.get('weight_decay', 0.03),
+        help='Weight decay for optimizer.'
+    )
+    parser.add_argument(
+        '--model-save-dir', type=str,
+        default=paths_cfg.get('model_save_dir', 'models/mnist_vit'),
+        help='Base directory to save models.'
+    )
+    parser.add_argument(
+        '--wandb-project', type=str,
+        default='mnist-vit-transformer-mlx',
+        help='W&B project name.'
+    )
+    parser.add_argument(
+        '--wandb-entity', type=str, default=None,
+        help='W&B entity.'
+    )
+    parser.add_argument(
+        '--wandb-run-name', type=str, default=None,
+        help='Custom W&B run name.'
+    )
+    parser.add_argument(
+        '--no-wandb', action='store_true', default=False,
+        help='Disable W&B logging.'
+    )
+    parser.add_argument(
+        '--seed', type=int, default=42,
+        help='Random seed.'
+    )
 
     args = parser.parse_args()
 
@@ -111,56 +134,106 @@ def parse_args(config: dict):
     logger.info("------------------------------------")
     return args
 
-# --- Helper to Pre-generate Data ---
-def pre_generate_synthetic_data(DatasetClass, base_dataset_np_tuple, length, config, phase):
-    """ Pre-generates the full synthetic dataset using the Dataset class. """
-    logger.info(f"Pre-generating {length} Phase {phase} samples...")
-    # Unpack numpy arrays
+def pre_generate_synthetic_data(
+    DatasetClass,
+    base_dataset_np_tuple,
+    length,
+    config,
+    phase
+):
+    """
+    Pre-generates the full synthetic dataset using the Dataset class.
+
+    Args:
+        DatasetClass (type): Dataset class to use for generation.
+        base_dataset_np_tuple (tuple): Tuple of (images, labels) numpy arrays.
+        length (int): Number of samples to generate.
+        config (dict): Configuration dictionary.
+        phase (int): Training phase (2 or 3).
+
+    Returns:
+        tuple: (images_mlx, labels_mlx) as MLX arrays, or (None, None) on error.
+    """
+    logger.info(f"Pre-generating {length} Phase {phase} MLX samples...")
     base_images_np, base_labels_np = base_dataset_np_tuple
 
-    # Instantiate the correct dataset generator class with correct arguments
     if DatasetClass == MNISTGridDatasetMLX:
         grid_size = config.get('dataset', {}).get('image_size_phase2', 56)
-        # Convert base data to MLX first for MNISTGridDatasetMLX
-        base_images_mlx = mx.array(base_images_np)
-        base_labels_mlx = mx.array(base_labels_np)
-        temp_dataset = DatasetClass(base_images_mlx, base_labels_mlx, length, grid_size=grid_size)
+        temp_dataset = DatasetClass(
+            base_images_np,
+            base_labels_np,
+            length,
+            grid_size=grid_size
+        )
     elif DatasetClass == MNISTDynamicDatasetMLX:
-        # MNISTDynamicDatasetMLX expects numpy arrays and config
-        temp_dataset = DatasetClass(base_images_np, base_labels_np, length, config=config)
+        try:
+            from PIL import Image
+            base_images_pil = [
+                Image.fromarray(np.squeeze(img)) for img in base_images_np
+            ]
+            temp_dataset = DatasetClass(
+                base_images_pil,
+                base_labels_np,
+                length,
+                config=config
+            )
+        except Exception as e:
+            logger.error(
+                f"Failed to prepare PIL images for P3 dataset: {e}"
+            )
+            return None, None
     else:
-         logger.error(f"❌ Unknown DatasetClass for pre-generation: {DatasetClass}")
-         return None, None
+        logger.error(
+            f"❌ Unknown DatasetClass for pre-generation: {DatasetClass}"
+        )
+        return None, None
 
-    all_images = []
-    all_labels = []
-    # Use __getitem__ which now returns MLX arrays directly
+    all_images_mlx = []
+    all_labels_mlx = []
     for i in tqdm(range(length), desc=f"Generating Phase {phase} Data"):
-        img, lbl = temp_dataset[i]
-        # Ensure returned values are MLX arrays before appending
-        if isinstance(img, mx.array) and isinstance(lbl, mx.array):
-             all_images.append(img)
-             all_labels.append(lbl)
-        else:
-             logger.warning(f"Item {i} from dataset generator was not an MLX array. Skipping.")
+        try:
+            img, lbl = temp_dataset[i]
+            if isinstance(img, mx.array) and isinstance(lbl, mx.array):
+                all_images_mlx.append(img)
+                all_labels_mlx.append(lbl)
+            else:
+                logger.warning(
+                    f"Item {i} from generator not MLX. Skipping."
+                )
+        except Exception as e:
+            logger.error(
+                f"Error during generation item {i}: {e}", exc_info=True
+            )
 
+    if (not all_images_mlx or not all_labels_mlx or
+            len(all_images_mlx) != length):
+        logger.error(
+            f"❌ Failed to generate sufficient valid samples for Phase {phase}."
+        )
+        return None, None
 
-    if not all_images or not all_labels:
-         logger.error(f"❌ Failed to generate any valid samples for Phase {phase}.")
-         return None, None
-
-    # Stack into large MLX arrays
     try:
-        images_mlx = mx.stack(all_images, axis=0)
-        labels_mlx = mx.stack(all_labels, axis=0)
-        logger.info(f"✅ Pre-generated Phase {phase} Data - Images: {images_mlx.shape}, Labels: {labels_mlx.shape}")
+        images_mlx = mx.stack(all_images_mlx, axis=0)
+        labels_mlx = mx.stack(all_labels_mlx, axis=0)
+        logger.info(
+            f"✅ Pre-generated Phase {phase} Data - Images: "
+            f"{images_mlx.shape}, Labels: {labels_mlx.shape}"
+        )
         return images_mlx, labels_mlx
     except Exception as e:
-         logger.error(f"❌ Failed to stack generated samples for Phase {phase}: {e}", exc_info=True)
-         return None, None
+        logger.error(
+            f"❌ Failed stacking generated samples for Phase {phase}: {e}",
+            exc_info=True
+        )
+        return None, None
 
-# --- Main Function ---
 def main():
+    """
+    Main entry point for training the MNIST Vision Transformer (MLX).
+
+    Loads configuration, parses arguments, prepares data, initializes model,
+    and runs training and logging.
+    """
     config = load_config()
     if config is None:
         return
@@ -172,106 +245,181 @@ def main():
     logger.info(f"🌱 Seed set to {args.seed}")
 
     run = None
-    run_name_base = (f"Phase{args.phase}_E{args.epochs}_LR{args.lr}_"
-                     f"B{args.batch_size}")
+    run_name_base = (
+        f"Phase{args.phase}_E{args.epochs}_LR{args.lr}_B{args.batch_size}"
+    )
     run_name = f"MLX_{run_name_base}_ViT"
     if args.wandb_run_name:
         run_name = args.wandb_run_name
 
     if wandb is not None and not args.no_wandb:
         try:
-            run = wandb.init(project=args.wandb_project,
-                             entity=args.wandb_entity,
-                             name=run_name, config=vars(args))
-            logger.info(f"📊 Initialized W&B run: {run.name} ({run.url})")
+            run = wandb.init(
+                project=args.wandb_project,
+                entity=args.wandb_entity,
+                name=run_name,
+                config=vars(args)
+            )
+            logger.info(
+                f"📊 Initialized W&B run: {run.name} ({run.url})"
+            )
         except Exception as e:
-            logger.error(f"❌ Failed W&B init: {e}", exc_info=True)
+            logger.error(
+                f"❌ Failed W&B init: {e}", exc_info=True
+            )
             run = None
     else:
         logger.info("📊 W&B logging disabled.")
+        run_name = (
+            f"MLX_{run_name_base}_local"
+            if args.wandb_run_name is None else args.wandb_run_name
+        )
 
-    logger.info(f"--- Loading/Generating Data for Phase {args.phase} (MLX) ---")
+    logger.info(
+        f"--- Loading/Generating Data for Phase {args.phase} (MLX) ---"
+    )
     train_images = val_images = train_labels = val_labels = None
     dataset_cfg = config.get('dataset', {})
+    paths_cfg = config.get('paths', {})
+    data_dir = paths_cfg.get('data_dir', None)
 
-    base_train_images_np, base_train_labels_np = get_mnist_data_arrays(
-        train=True)
-    base_val_images_np, base_val_labels_np = get_mnist_data_arrays(
-        train=False)
+    base_train_np = get_mnist_data_arrays(
+        train=True, data_dir=data_dir
+    )
+    base_val_np = get_mnist_data_arrays(
+        train=False, data_dir=data_dir
+    )
 
-    if base_train_images_np is None or base_val_images_np is None:
+    if base_train_np is None or base_val_np is None:
         logger.error("❌ Failed to load base MNIST NumPy data. Exiting.")
-        if run:
-            run.finish(exit_code=1)
-        return
+        sys.exit(1)
 
     if args.phase == 1:
         logger.info("Normalizing and converting base data for Phase 1...")
-        from src.mnist_transformer_mlx.dataset_mlx import numpy_normalize
-        train_images = mx.array(numpy_normalize(base_train_images_np))
-        train_labels = mx.array(base_train_labels_np)
-        val_images = mx.array(numpy_normalize(base_val_images_np))
-        val_labels = mx.array(base_val_labels_np)
+        train_images = mx.array(numpy_normalize(base_train_np[0]))
+        train_labels = mx.array(base_train_np[1])
+        val_images = mx.array(numpy_normalize(base_val_np[0]))
+        val_labels = mx.array(base_val_np[1])
 
     elif args.phase == 2:
-        train_set_length = len(base_train_images_np)
-        val_set_length = len(base_val_images_np)
-        # --- 👇 Call corrected helper ---
+        train_set_length = len(base_train_np[0])
+        val_set_length = len(base_val_np[0])
         train_images, train_labels = pre_generate_synthetic_data(
-            MNISTGridDatasetMLX, # Pass the class itself
-            (base_train_images_np, base_train_labels_np), # Pass tuple of numpy arrays
+            MNISTGridDatasetMLX,
+            base_train_np,
             train_set_length,
-            config, # Pass config for parameters
-            2 # Indicate phase
+            config,
+            2
         )
         val_images, val_labels = pre_generate_synthetic_data(
             MNISTGridDatasetMLX,
-            (base_val_images_np, base_val_labels_np),
+            base_val_np,
             val_set_length,
             config,
             2
         )
+
+    elif args.phase == 3:
+        train_set_length = len(base_train_np[0])
+        val_set_length = len(base_val_np[0])
+        train_images, train_labels = pre_generate_synthetic_data(
+            MNISTDynamicDatasetMLX,
+            base_train_np,
+            train_set_length,
+            config,
+            3
+        )
+        val_images, val_labels = pre_generate_synthetic_data(
+            MNISTDynamicDatasetMLX,
+            base_val_np,
+            val_set_length,
+            config,
+            3
+        )
     else:
-        logger.error(f"❌ Phase {args.phase} data loading not fully "
-                     f"implemented in script yet!")
+        logger.error(f"❌ Invalid phase specified: {args.phase}")
         if run:
             run.finish(exit_code=1)
-        return
+        sys.exit(1)
 
     if train_images is None or val_images is None:
-        logger.error("❌ Failed to prepare MLX datasets. Exiting.")
+        logger.error("❌ Failed to prepare MLX datasets for training. Exiting.")
         if run:
             run.finish(exit_code=1)
-        return
+        sys.exit(1)
 
-    logger.info(f"Prepared Train Data - Images: {train_images.shape}, "
-                f"Labels: {train_labels.shape}")
-    logger.info(f"Prepared Val Data   - Images: {val_images.shape}, "
-                f"Labels: {val_labels.shape}")
-
-    del base_train_images_np, base_train_labels_np
-    del base_val_images_np, base_val_labels_np
-
-    logger.info("--- Initializing MLX Vision Transformer Model ---")
-    model_cfg = config.get('model', {})
-    img_size = dataset_cfg.get(f'image_size_phase{args.phase}',
-                              dataset_cfg['image_size'])
-    patch_size = dataset_cfg.get(f'patch_size_phase{args.phase}',
-                                dataset_cfg['patch_size'])
-    num_outputs = dataset_cfg.get(f'num_outputs_phase{args.phase}', 1)
-    num_classes = dataset_cfg.get(f'num_classes_phase{args.phase}',
-                                 dataset_cfg['num_classes'])
-
-    model = VisionTransformerMLX(
-        img_size=img_size, patch_size=patch_size,
-        in_channels=dataset_cfg['in_channels'],
-        num_classes=num_classes, embed_dim=model_cfg['embed_dim'],
-        depth=model_cfg['depth'], num_heads=model_cfg['num_heads'],
-        mlp_ratio=model_cfg['mlp_ratio'],
-        attention_dropout=model_cfg.get('attention_dropout', 0.1),
-        mlp_dropout=model_cfg.get('mlp_dropout', 0.1),
-        num_outputs=num_outputs
+    logger.info(
+        f"Prepared Train Data - Images: {train_images.shape}, "
+        f"Labels: {train_labels.shape}"
     )
+    logger.info(
+        f"Prepared Val Data   - Images: {val_images.shape}, "
+        f"Labels: {val_labels.shape}"
+    )
+
+    del base_train_np, base_val_np
+
+    logger.info(
+        f"--- Initializing MLX Model for Phase {args.phase} ---"
+    )
+    model_cfg = config.get('model', {})
+    dataset_cfg = config.get('dataset', {})
+    tokenizer_cfg = config.get('tokenizer', {})
+    model = None
+    if args.phase == 1 or args.phase == 2:
+        img_size = dataset_cfg.get(
+            f'image_size_phase{args.phase}',
+            dataset_cfg.get('image_size')
+        )
+        patch_size = dataset_cfg.get('patch_size')
+        num_outputs = dataset_cfg.get(
+            f'num_outputs_phase{args.phase}', 1
+        )
+        num_classes = dataset_cfg.get('num_classes')
+
+        model = VisionTransformerMLX(
+            img_size=img_size,
+            patch_size=patch_size,
+            in_channels=dataset_cfg['in_channels'],
+            num_classes=num_classes,
+            embed_dim=model_cfg['embed_dim'],
+            depth=model_cfg['depth'],
+            num_heads=model_cfg['num_heads'],
+            mlp_ratio=model_cfg['mlp_ratio'],
+            dropout=model_cfg.get('dropout', 0.1),
+            attention_dropout=model_cfg.get('attention_dropout', 0.1),
+            num_outputs=num_outputs
+        )
+    elif args.phase == 3:
+        img_size = dataset_cfg.get('image_size_phase3')
+        patch_size = dataset_cfg.get('patch_size_phase3')
+        decoder_vocab_size = tokenizer_cfg.get('vocab_size')
+        max_seq_len = dataset_cfg.get('max_seq_len')
+
+        model = EncoderDecoderViTMLX(
+            img_size=img_size,
+            patch_size=patch_size,
+            in_channels=dataset_cfg['in_channels'],
+            encoder_embed_dim=model_cfg['embed_dim'],
+            encoder_depth=model_cfg['depth'],
+            encoder_num_heads=model_cfg['num_heads'],
+            decoder_vocab_size=decoder_vocab_size,
+            decoder_embed_dim=model_cfg['decoder_embed_dim'],
+            decoder_depth=model_cfg['decoder_depth'],
+            decoder_num_heads=model_cfg['decoder_num_heads'],
+            max_seq_len=max_seq_len,
+            mlp_ratio=model_cfg['mlp_ratio'],
+            dropout=model_cfg.get('dropout', 0.1),
+            attention_dropout=model_cfg.get('attention_dropout', 0.1)
+        )
+    else:
+        logger.error(
+            f"❌ Cannot instantiate model for invalid phase: {args.phase}"
+        )
+        if run:
+            run.finish(exit_code=1)
+        sys.exit(1)
+
     mx.eval(model.parameters())
     leaves = tree_flatten(model.parameters())
     nparams = sum(arr.size for _, arr in leaves)
@@ -281,11 +429,18 @@ def main():
     lr = args.lr
     wd = args.wd
     if optimizer_name.lower() == "adamw":
-        optimizer = optim.AdamW(learning_rate=lr, weight_decay=wd)
+        optimizer = optim.AdamW(
+            learning_rate=lr,
+            weight_decay=wd
+        )
     else:
-        optimizer = optim.Adam(learning_rate=lr)
-    logger.info(f"Optimizer: {optimizer_name} (LR={lr}, "
-                f"WD={wd if optimizer_name.lower() == 'adamw' else 'N/A'})")
+        optimizer = optim.Adam(
+            learning_rate=lr
+        )
+    logger.info(
+        f"Optimizer: {optimizer_name} (LR={lr}, "
+        f"WD={wd if optimizer_name.lower()=='adamw' else 'N/A'})"
+    )
 
     lr_scheduler = None
     logger.info(f"LR Scheduler: {'None'}")
@@ -293,15 +448,20 @@ def main():
     logger.info("--- Starting MLX Training ---")
     start_time = time.time()
 
-    epoch_losses, last_val_metrics = train_model_mlx(
-        model=model, optimizer=optimizer,
-        train_images=train_images, train_labels=train_labels,
-        val_images=val_images, val_labels=val_labels,
-        epochs=args.epochs, batch_size=args.batch_size,
+    metrics_history, last_val_metrics = train_model_mlx(
+        model=model,
+        optimizer=optimizer,
+        train_images=train_images,
+        train_labels=train_labels,
+        val_images=val_images,
+        val_labels=val_labels,
+        epochs=args.epochs,
+        batch_size=args.batch_size,
         model_save_dir=args.model_save_dir,
+        config=config,
+        phase=args.phase,
         run_name=run.name if run else run_name,
         wandb_run=run,
-        phase=args.phase
     )
 
     training_time = time.time() - start_time
@@ -309,37 +469,45 @@ def main():
 
     logger.info("--- Finalizing Run ---")
     logger.info(f"Final Validation Metrics: {last_val_metrics}")
-    run_save_path = Path(args.model_save_dir) / (run.name if run else run_name)
-    loss_file = save_losses(epoch_losses, run_save_path)
-    plot_file = plot_losses(epoch_losses, run_save_path)
+    run_save_path = Path(args.model_save_dir) / (
+        run.name if run else run_name
+    )
+    metrics_file = save_metrics(metrics_history, run_save_path)
+    plot_file = plot_metrics(metrics_history, run_save_path)
     model_file = run_save_path / "model_weights.safetensors"
 
     if run:
         logger.info("☁️ Logging final artifacts to W&B...")
         try:
+            artifact_name = f"mnist_vit_mlx_final_{run.id}"
             final_artifact = wandb.Artifact(
-                f"mnist_vit_mlx_final_{run.id}", type="model")
+                artifact_name, type="model"
+            )
             if model_file.exists():
                 final_artifact.add_file(str(model_file))
             else:
-                logger.warning(f"MLX Model weights file {model_file} not found.")
-            if loss_file and Path(loss_file).exists():
-                final_artifact.add_file(loss_file)
+                logger.warning(
+                    f"MLX Model weights file {model_file} not found."
+                )
+            if metrics_file and Path(metrics_file).exists():
+                final_artifact.add_file(metrics_file)
             if plot_file and Path(plot_file).exists():
                 final_artifact.add_file(plot_file)
             config_log_path = Path(args.config_path)
             if config_log_path.exists():
                 final_artifact.add_file(str(config_log_path))
             run.log_artifact(final_artifact)
-            logger.info("  Logged final model weights, results, and config "
-                        "artifact.")
+            logger.info(
+                "  Logged final model weights, results, and config artifact."
+            )
         except Exception as e:
-            logger.error(f"❌ Failed W&B artifact logging: {e}", exc_info=True)
+            logger.error(
+                f"❌ Failed W&B artifact logging: {e}", exc_info=True
+            )
         run.finish()
         logger.info("☁️ W&B run finished.")
 
     logger.info("✅ MLX Training script completed.")
 
-# --- Entry Point ---
 if __name__ == "__main__":
     main()
