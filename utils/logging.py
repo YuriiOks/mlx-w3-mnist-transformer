@@ -3,7 +3,7 @@
 # Copyright (c) 2025 Backprop Bunch Team (Yurii, Amy, Guillaume, Aygun)
 # Description: Logging setup for the project with colored console output.
 # Created: 2025-04-28
-# Updated: 2025-04-28 # <-- Update date
+# Updated: 2025-04-30
 
 import logging
 import os
@@ -23,7 +23,6 @@ except ImportError:
     print("   Install with: pip install coloredlogs")
 # --- End import ---
 
-
 # --- Config ---
 LOG_LEVEL = os.environ.get('LOG_LEVEL', 'INFO').upper()
 LOG_FILE_ENABLED = os.environ.get(
@@ -35,20 +34,17 @@ LOG_CONSOLE_ENABLED = os.environ.get(
 LOGS_DIR = os.environ.get('LOGS_DIR', 'logs')
 LOG_FILE_NAME = os.environ.get(
     'LOG_FILE_NAME', 'mnist_vit_train.log'
-) # Project-specific name
-LOG_MAX_BYTES = int(os.environ.get('LOG_MAX_BYTES', 10*1024*1024)) # 10MB
+)
+LOG_MAX_BYTES = int(os.environ.get('LOG_MAX_BYTES', 10 * 1024 * 1024))
 LOG_BACKUP_COUNT = int(os.environ.get('LOG_BACKUP_COUNT', 5))
 LOG_FORMAT = os.environ.get(
     'LOG_FORMAT',
-    # Adjust format slightly for better alignment with coloredlogs levels
     '%(asctime)s | %(name)s | %(levelname)-8s | '
     '[%(filename)s:%(lineno)d] | %(message)s'
 )
-# Example coloredlogs field styles (optional customization)
 FIELD_STYLES = coloredlogs.DEFAULT_FIELD_STYLES
 FIELD_STYLES['levelname'] = {'color': 'white', 'bold': True}
 FIELD_STYLES['name'] = {'color': 'blue'}
-# Example coloredlogs level styles (can customize INFO, WARNING, ERROR etc.)
 LEVEL_STYLES = coloredlogs.DEFAULT_LEVEL_STYLES
 LEVEL_STYLES['info'] = {'color': 'green'}
 LEVEL_STYLES['warning'] = {'color': 'yellow'}
@@ -56,31 +52,46 @@ LEVEL_STYLES['error'] = {'color': 'red', 'bold': True}
 LEVEL_STYLES['critical'] = {
     'color': 'red', 'bold': True, 'background': 'white'
 }
-
-
 DATE_FORMAT = '%Y-%m-%d %H:%M:%S'
-LOGGER_NAME = "Backprop Bunch" # Your team/project name
+LOGGER_NAME = "Backprop Bunch"
 # --- End Config ---
-
 
 logger = logging.getLogger(LOGGER_NAME)
 _logging_initialized = False
 
-def setup_logging(log_dir=LOGS_DIR, log_file=LOG_FILE_NAME):
-    """Configures the project logger with colored console output."""
+def setup_logging(
+    log_dir=LOGS_DIR,
+    log_file=LOG_FILE_NAME
+):
+    """
+    Configures the project logger with colored console output and
+    rotating file logging.
+
+    Args:
+        log_dir (str): Directory where log files are stored.
+        log_file (str): Name of the log file.
+
+    This function:
+        - Sets up logging level and handlers.
+        - Adds a rotating file handler if enabled.
+        - Adds a colored console handler if enabled and coloredlogs is
+          available.
+        - Ensures handlers are not duplicated on repeated calls.
+        - Prevents log propagation to the root logger.
+    """
     global _logging_initialized
-    if _logging_initialized: return
+    if _logging_initialized:
+        return
 
     print(f"⚙️  Configuring {LOGGER_NAME} logging...")
     level = getattr(logging, LOG_LEVEL, logging.INFO)
     logger.setLevel(level)
-    # Prevent adding handlers multiple times if called again somehow
+
     if logger.hasHandlers():
         print("  Clearing existing handlers...")
         for handler in logger.handlers[:]:
             logger.removeHandler(handler)
             handler.close()
-    # Prevent log messages from propagating to the root logger
     logger.propagate = False
 
     print(f"  Logger '{LOGGER_NAME}' level set to: {LOG_LEVEL}")
@@ -90,8 +101,10 @@ def setup_logging(log_dir=LOGS_DIR, log_file=LOG_FILE_NAME):
         try:
             os.makedirs(log_dir, exist_ok=True)
             log_path = os.path.join(log_dir, log_file)
-            # Use standard formatter for the file
-            file_formatter = logging.Formatter(LOG_FORMAT, datefmt=DATE_FORMAT)
+            file_formatter = logging.Formatter(
+                LOG_FORMAT,
+                datefmt=DATE_FORMAT
+            )
             fh = RotatingFileHandler(
                 log_path,
                 maxBytes=LOG_MAX_BYTES,
@@ -111,25 +124,23 @@ def setup_logging(log_dir=LOGS_DIR, log_file=LOG_FILE_NAME):
         ch.setLevel(level)
 
         if COLOREDLOGS_AVAILABLE:
-             # Use ColoredFormatter for console
-             console_formatter = coloredlogs.ColoredFormatter(
-                 fmt=LOG_FORMAT,
-                 datefmt=DATE_FORMAT,
-                 level_styles=LEVEL_STYLES,
-                 field_styles=FIELD_STYLES
-             )
-             print("  🎨 Applying colored formatter to console handler.")
+            console_formatter = coloredlogs.ColoredFormatter(
+                fmt=LOG_FORMAT,
+                datefmt=DATE_FORMAT,
+                level_styles=LEVEL_STYLES,
+                field_styles=FIELD_STYLES
+            )
+            print("  🎨 Applying colored formatter to console handler.")
         else:
-             # Fallback to standard formatter if coloredlogs not installed
-             console_formatter = logging.Formatter(
-                 LOG_FORMAT, datefmt=DATE_FORMAT
-             )
-             print("  Falling back to standard console formatter.")
+            console_formatter = logging.Formatter(
+                LOG_FORMAT,
+                datefmt=DATE_FORMAT
+            )
+            print("  Falling back to standard console formatter.")
 
         ch.setFormatter(console_formatter)
         logger.addHandler(ch)
         print("  ✅ Console handler added.")
-
 
     if logger.hasHandlers():
         logger.info("🎉 Logging system initialized!")
@@ -137,19 +148,20 @@ def setup_logging(log_dir=LOGS_DIR, log_file=LOG_FILE_NAME):
         print(f"⚠️ Warning: No handlers configured for {LOGGER_NAME}.")
     _logging_initialized = True
 
-# Setup logging only if this is the main process and not initialized.
-if (multiprocessing.current_process().name == 'MainProcess' and
-        not _logging_initialized):
+if (
+    multiprocessing.current_process().name == 'MainProcess'
+    and not _logging_initialized
+):
     setup_logging()
 
-# Optional: Keep the direct run check if you want to test logging.py
 if __name__ == "__main__":
-     if multiprocessing.current_process().name == 'MainProcess':
-          logger.info("Logging module test (MainProcess). INFO")
-          logger.warning("Logging module test (MainProcess). WARNING")
-          logger.error("Logging module test (MainProcess). ERROR")
-     else:
-          # Worker processes might still hit this if run directly
-          proc_name = multiprocessing.current_process().name
-          print(f"Logging module test (Worker: {proc_name}). "
-                "Logger setup skipped.")
+    if multiprocessing.current_process().name == 'MainProcess':
+        logger.info("Logging module test (MainProcess). INFO")
+        logger.warning("Logging module test (MainProcess). WARNING")
+        logger.error("Logging module test (MainProcess). ERROR")
+    else:
+        proc_name = multiprocessing.current_process().name
+        print(
+            f"Logging module test (Worker: {proc_name}). "
+            "Logger setup skipped."
+        )
