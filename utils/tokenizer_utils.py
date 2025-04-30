@@ -5,6 +5,9 @@
 # Created: 2025-04-29
 # Updated: 2025-04-29
 
+
+from .logging import logger
+
 # --- Define Special Tokens and Vocabulary ---
 
 # Define constants for special token indices
@@ -102,7 +105,6 @@ def sequence_to_labels(
 
 # --- Test Block ---
 if __name__ == "__main__":
-    from utils import logger
     logger.info("--- Decoder Vocabulary ---")
     logger.info(f"Vocab Size: {DECODER_VOCAB_SIZE}")
     logger.info(f"Vocab Dict: {DECODER_VOCAB}")
