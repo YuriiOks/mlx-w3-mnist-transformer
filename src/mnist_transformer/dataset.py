@@ -4,7 +4,7 @@
 # Description: MNIST dataset loading, preprocessing, and synthetic data
 # generation (All Phases).
 # Created: 2025-04-28
-# Updated: 2025-04-29
+# Updated: 2025-04-30
 
 import torch
 from torchvision import datasets, transforms
@@ -73,15 +73,14 @@ def get_mnist_transforms(
     augment: bool = False
 ) -> transforms.Compose:
     """
-    Returns standard MNIST transforms (Resize, ToTensor, Normalize).
-    Optionally includes basic augmentation for Phase 1.
+    Returns a composed torchvision transform for MNIST images.
 
     Args:
-        image_size (int): Size of the output image.
-        augment (bool): Whether to apply basic augmentation.
+        image_size (int): Desired output image size (height and width).
+        augment (bool): If True, applies basic augmentation for training.
 
     Returns:
-        transforms.Compose: Composed transform for MNIST.
+        transforms.Compose: Composed transform for MNIST images.
     """
     transform_list = []
     if augment and image_size == 28:
@@ -109,13 +108,12 @@ def get_mnist_dataset(
     Loads the standard MNIST dataset using torchvision.
 
     Args:
-        train (bool): Whether to load the training set (True) or test set
-            (False).
+        train (bool): If True, loads training set. If False, loads test set.
         data_dir (str | Path): Directory to save/load the dataset.
         transform (Optional[transforms.Compose]): Transformations to apply.
 
     Returns:
-        Optional[Dataset]: Loaded MNIST dataset or None if failed.
+        Optional[Dataset]: Loaded MNIST dataset or None if loading fails.
     """
     split_name = "Train" if train else "Test"
     if transform is None:
@@ -207,6 +205,14 @@ class MNISTGridDataset(Dataset):
         length: int,
         grid_size: int = 56
     ):
+        """
+        Initialize MNISTGridDataset.
+
+        Args:
+            base_mnist_dataset (Dataset): The base MNIST dataset.
+            length (int): Number of synthetic samples to generate.
+            grid_size (int): Size of the output grid image.
+        """
         self.base_dataset = base_mnist_dataset
         self.length = length
         self.grid_size = grid_size
@@ -218,7 +224,12 @@ class MNISTGridDataset(Dataset):
         )
 
     def __len__(self) -> int:
-        """Returns the length of the dataset."""
+        """
+        Returns the length of the dataset.
+
+        Returns:
+            int: Number of samples in the dataset.
+        """
         return self.length
 
     def __getitem__(
@@ -262,7 +273,7 @@ def generate_dynamic_digit_image_pt(
     augment_digits: bool = True
 ) -> Optional[Tuple[torch.Tensor, List[int]]]:
     """
-    Generates image tensor with 0-max_digits placed randomly.
+    Generates an image tensor with 0 to max_digits placed randomly.
 
     Applies augmentation to individual digits before placement.
     Returns canvas tensor (unnormalized, 0-1 range) and ordered labels.
@@ -350,6 +361,15 @@ class MNISTDynamicDataset(Dataset):
         config: Dict,
         use_augmentation: bool = True
     ):
+        """
+        Initialize MNISTDynamicDataset.
+
+        Args:
+            base_mnist_pil_dataset (Dataset): Base MNIST dataset (PIL).
+            length (int): Number of synthetic samples to generate.
+            config (Dict): Configuration dictionary.
+            use_augmentation (bool): Whether to use digit augmentation.
+        """
         self.base_dataset_pil = base_mnist_pil_dataset
         self.length = length
         self.use_augmentation = use_augmentation
@@ -373,7 +393,12 @@ class MNISTDynamicDataset(Dataset):
         )
 
     def __len__(self) -> int:
-        """Returns the length of the dataset."""
+        """
+        Returns the length of the dataset.
+
+        Returns:
+            int: Number of samples in the dataset.
+        """
         return self.length
 
     def __getitem__(
@@ -456,7 +481,10 @@ if __name__ == "__main__":
     logger.info("🧪 Running dataset.py script directly for testing All Phases...")
     config = load_config(Path(project_root) / "config.yaml") or {}
     import matplotlib.pyplot as plt
-    def imshow(img_tensor, title=''):
+    def imshow(
+        img_tensor,
+        title: str = ''
+    ):
         """
         Utility to display a tensor image using matplotlib.
 
@@ -523,7 +551,7 @@ if __name__ == "__main__":
             logger.info("🧪 Testing Phase 3 WITHOUT augmentation...")
             try:
                 p3_dataset_noaug = MNISTDynamicDataset(
-                    base_train_pil,
+                    base_mnist_pil_dataset=base_train_pil,
                     length=4,
                     config=config,
                     use_augmentation=False
@@ -540,7 +568,7 @@ if __name__ == "__main__":
             logger.info("🧪 Testing Phase 3 WITH augmentation...")
             try:
                 p3_dataset_aug = MNISTDynamicDataset(
-                    base_train_pil,
+                    base_mnist_pil_dataset=base_train_pil,
                     length=4,
                     config=config,
                     use_augmentation=True
