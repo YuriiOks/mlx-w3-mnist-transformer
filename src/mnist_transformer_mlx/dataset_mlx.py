@@ -68,7 +68,14 @@ digit_augmentation_transform = transforms.Compose([
 
 # --- Normalization Helper ---
 def numpy_normalize(np_array: np.ndarray) -> np.ndarray:
-    """Normalizes NumPy array (H, W, C) using MNIST stats."""
+    """
+    Normalizes a NumPy array to the MNIST mean and std.
+    Args:
+        np_array (np.ndarray): Input NumPy array to normalize.
+    Returns:
+        np.ndarray: Normalized NumPy array.
+    """
+    
     normalized = np_array.astype(np.float32) / 255.0
     normalized = (normalized - MNIST_MEAN) / MNIST_STD
     return normalized
@@ -78,7 +85,15 @@ def get_mnist_data_arrays(
     train: bool = True,
     data_dir: str | Path = DEFAULT_DATA_DIR
 ) -> Optional[Tuple[np.ndarray, np.ndarray]]:
-    """Loads raw MNIST data as NumPy arrays (N, H, W, C)."""
+    """
+    Loads MNIST data as NumPy arrays (images and labels).
+    Args:
+        train (bool): If True, load training data. If False, load test data.
+        data_dir (str | Path): Directory to save/load MNIST data.
+    Returns:
+        Tuple[np.ndarray, np.ndarray]: Tuple of NumPy arrays (images, labels).
+    """
+
     if not TORCHVISION_AVAILABLE:
         return None
     split = "Train" if train else "Test"
@@ -112,7 +127,16 @@ def generate_2x2_grid_image_np(
     base_labels_np: np.ndarray,
     output_size: int = 56
 ) -> Optional[Tuple[np.ndarray, np.ndarray]]:
-    """Generates a single 2x2 grid image (uint8 NumPy array)."""
+    """
+    Generates a 2x2 grid image (NumPy) from base images and labels.
+    Args:
+        base_images_np (np.ndarray): Base images as NumPy array.
+        base_labels_np (np.ndarray): Base labels as NumPy array.
+        output_size (int): Size of the output grid image.
+    Returns:
+        Optional[Tuple[np.ndarray, np.ndarray]]: Tuple of grid image and labels.
+    """
+
     num_base = base_images_np.shape[0]
     if num_base < 4:
         return None
@@ -131,7 +155,10 @@ def generate_2x2_grid_image_np(
         return None
 
 class MNISTGridDatasetMLX:
-    """Generates 2x2 MNIST grid images (MLX arrays) on the fly."""
+    """
+    Generates 2x2 grid MNIST images and labels (MLX arrays).
+    """
+
     def __init__(
         self,
         base_images_np: np.ndarray,
@@ -151,9 +178,20 @@ class MNISTGridDatasetMLX:
         )
 
     def __len__(self):
+        """
+        Returns the length of the dataset.
+        """
         return self.length
 
     def __getitem__(self, idx):
+        """
+        Generates a 2x2 grid image and labels for the given index.
+        Args:
+            idx (int): Index of the sample to generate.
+        Returns:
+            Tuple[mx.ndarray, mx.ndarray]: Tuple of grid image and labels.
+        """
+
         grid_image_np, labels_np = generate_2x2_grid_image_np(
             self.base_images_np, self.base_labels_np, self.grid_size
         )
@@ -180,8 +218,21 @@ def generate_dynamic_digit_image_seq_np(
     pad_token_id: int = PAD_TOKEN_ID
 ) -> Optional[Tuple[np.ndarray, np.ndarray]]:
     """
-    Generates image (uint8 NumPy) with random digits & target sequence.
+    Generates a dynamic digit image and target sequence (NumPy).
+    Args:
+        base_images_pil (List[Image.Image]): Base images as PIL images.
+        base_labels_np (np.ndarray): Base labels as NumPy array.
+        canvas_size (int): Size of the output canvas.
+        max_digits (int): Maximum number of digits to place.
+        augment_digits (bool): Whether to apply augmentation.
+        max_seq_len (int): Maximum sequence length for labels.
+        start_token_id (int): Start token ID for the sequence.
+        end_token_id (int): End token ID for the sequence.
+        pad_token_id (int): Padding token ID for the sequence.
+    Returns:
+        Optional[Tuple[np.ndarray, np.ndarray]]: Tuple of canvas image and target sequence.
     """
+
     num_base_images = len(base_images_pil)
     canvas_np = np.zeros((canvas_size, canvas_size, 1), dtype=np.uint8)
     placed_boxes = []
@@ -246,7 +297,10 @@ def generate_dynamic_digit_image_seq_np(
     return canvas_np, target_sequence_np
 
 class MNISTDynamicDatasetMLX:
-    """Generates dynamic MNIST images and target sequences (MLX arrays)."""
+    """
+    Generates dynamic digit images and target sequences (MLX arrays).
+    """
+
     def __init__(
         self,
         base_images_pil: List[Image.Image],
@@ -274,9 +328,20 @@ class MNISTDynamicDatasetMLX:
         )
 
     def __len__(self):
+        """
+        Returns the length of the dataset.
+        """
         return self.length
 
     def __getitem__(self, idx):
+        """
+        Generates a dynamic digit image and target sequence for the given index.
+        Args:
+            idx (int): Index of the sample to generate.
+        Returns:
+            Tuple[mx.ndarray, mx.ndarray]: Tuple of canvas image and target sequence.
+        """
+
         canvas_np, target_sequence_np = generate_dynamic_digit_image_seq_np(
             self.base_images_pil, self.base_labels_np, self.canvas_size,
             self.max_digits, self.use_augmentation,
@@ -301,6 +366,13 @@ if __name__ == "__main__":
     config = load_config(project_root / "config.yaml") or {}
 
     def imshow(img_tensor, title=''):
+        """
+        Displays a single image tensor using matplotlib.
+        Args:
+            img_tensor (mx.ndarray): Image tensor to display.
+            title (str): Title for the image.
+        """
+
         npimg = np.array(img_tensor)
         if npimg.min() < -0.5:
             npimg = (npimg * MNIST_STD) + MNIST_MEAN
