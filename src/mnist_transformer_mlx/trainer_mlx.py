@@ -5,6 +5,7 @@
 # Created: 2025-04-28
 # Updated: 2025-04-30
 
+import pickle # For saving python objects like optimizer state, epoch num
 import mlx.core as mx
 import mlx.nn as nn
 import mlx.optimizers as optim
@@ -319,7 +320,104 @@ def evaluate_model_mlx(
     )
     return {"val_loss": avg_loss, "val_accuracy": avg_accuracy}
 
+# --- Checkpointing Helpers ---
+
+def save_checkpoint(
+    model: nn.Module,
+    optimizer: optim.Optimizer,
+    epoch: int,
+    metrics_history: Dict,
+    save_dir: Path,
+    is_best: bool = False
+):
+    """
+    Save model weights, optimizer state, and epoch number to disk.
+
+    Args:
+        model (nn.Module): The MLX model whose weights to save.
+        optimizer (optim.Optimizer): The optimizer whose state to save.
+        epoch (int): The current epoch number.
+        metrics_history (Dict): Dictionary of training/validation metrics.
+        save_dir (Path): Directory to save checkpoint files.
+        is_best (bool): If True, also save as best model weights.
+    """
+    save_dir.mkdir(parents=True, exist_ok=True)
+    weights_path = save_dir / "model_weights.safetensors"
+    model.save_weights(str(weights_path))
+    state_path = save_dir / "training_state.pkl"
+    state = {
+        'epoch': epoch + 1,
+        'optimizer_state': optimizer.state,
+        'metrics_history': metrics_history,
+    }
+    try:
+        with open(state_path, 'wb') as f:
+            pickle.dump(state, f)
+        logger.info(f"💾 Checkpoint saved to {save_dir}")
+    except Exception as e:
+        logger.error(f"❌ Failed to save training state: {e}")
+    if is_best:
+        best_weights_path = save_dir.parent / "best_model_weights.safetensors"
+        model.save_weights(str(best_weights_path))
+        logger.info(f"🏆 Best model weights saved to {best_weights_path}")
+
+def load_checkpoint(
+    model: nn.Module,
+    optimizer: optim.Optimizer,
+    save_dir: Path
+) -> Tuple[nn.Module, optim.Optimizer, int, Dict]:
+    """
+    Load model weights, optimizer state, and epoch from checkpoint.
+
+    Args:
+        model (nn.Module): The MLX model to load weights into.
+        optimizer (optim.Optimizer): The optimizer to load state into.
+        save_dir (Path): Directory containing checkpoint files.
+
+    Returns:
+        Tuple[nn.Module, optim.Optimizer, int, Dict]: 
+            Updated model, optimizer, start epoch, and metrics history.
+    """
+    weights_path = save_dir / "model_weights.safetensors"
+    state_path = save_dir / "training_state.pkl"
+    start_epoch = 0
+    metrics_history = {
+        "avg_train_loss": [],
+        "val_loss": [],
+        "val_accuracy": [],
+        "learning_rate": []
+    }
+    if weights_path.exists() and state_path.exists():
+        logger.info(f"♻️ Resuming training from checkpoint in {save_dir}")
+        try:
+            model.load_weights(str(weights_path))
+            with open(state_path, 'rb') as f:
+                state = pickle.load(f)
+            optimizer.state = state['optimizer_state']
+            start_epoch = state['epoch']
+            metrics_history = state.get('metrics_history', metrics_history)
+            logger.info(
+                f"✅ Checkpoint loaded. Resuming from epoch {start_epoch}."
+            )
+            mx.eval(model.parameters(), optimizer.state)
+        except Exception as e:
+            logger.error(
+                f"❌ Failed to load checkpoint: {e}. Starting fresh.",
+                exc_info=True
+            )
+            start_epoch = 0
+            metrics_history = {
+                "avg_train_loss": [],
+                "val_loss": [],
+                "val_accuracy": [],
+                "learning_rate": []
+            }
+    else:
+        logger.info("No checkpoint found. Starting training from scratch.")
+    return model, optimizer, start_epoch, metrics_history
+
 # --- Main Training Orchestrator Function (MLX) ---
+
 def train_model_mlx(
     model: nn.Module,
     optimizer: optim.Optimizer,
@@ -334,59 +432,69 @@ def train_model_mlx(
     phase: int = 1,
     run_name: str = "mnist_vit_mlx_run",
     wandb_run: Optional[Any] = None,
+    resume_from_checkpoint: bool = True,
+    save_every: int = 5
 ) -> Tuple[Dict[str, List[float]], Dict]:
     """
-    Orchestrates the overall MLX model training process over multiple epochs.
+    Orchestrate the MLX model training process with checkpointing.
 
-    Handles epoch looping, calling training and evaluation functions,
-    logging metrics, and saving the final model weights.
+    Handles training, validation, checkpointing, and logging.
 
     Args:
-        model (nn.Module): The MLX model instance.
-        optimizer (optim.Optimizer): The MLX optimizer instance.
-        train_images (mx.array): Full training image dataset (mx.array).
-        train_labels (mx.array): Full training label dataset (mx.array).
-        val_images (mx.array): Full validation image dataset (mx.array).
-        val_labels (mx.array): Full validation label dataset (mx.array).
+        model (nn.Module): The MLX model to train.
+        optimizer (optim.Optimizer): The optimizer for training.
+        train_images (mx.array): Training images.
+        train_labels (mx.array): Training labels.
+        val_images (mx.array): Validation images.
+        val_labels (mx.array): Validation labels.
         epochs (int): Total number of epochs to train.
-        batch_size (int): Batch size for training and evaluation.
-        model_save_dir (str | Path): Directory to save the final model weights.
-        config (dict): Dictionary containing configuration parameters 
-            (e.g., tokenizer pad_id).
-        phase (int): Current training phase (1, 2, or 3).
-        run_name (str): Name for the training run (used for saving).
-        wandb_run (Optional[Any]): Optional W&B run object for logging.
+        batch_size (int): Batch size for training.
+        model_save_dir (str | Path): Directory to save checkpoints.
+        config (dict): Configuration dictionary.
+        phase (int): Training phase (1, 2, or 3).
+        run_name (str): Name for the training run.
+        wandb_run (Optional[Any]): Weights & Biases run object.
+        resume_from_checkpoint (bool): Resume from checkpoint if available.
+        save_every (int): Save checkpoint every N epochs.
 
     Returns:
         Tuple[Dict[str, List[float]], Dict]: 
-            - metrics_history: A dictionary storing lists of metrics per epoch
-              ('avg_train_loss', 'val_loss', 'val_accuracy', 'learning_rate').
-            - last_val_metrics: A dictionary with the validation metrics from 
-              the final epoch.
+            Metrics history and last validation metrics.
     """
     logger.info(
         f"🚀 Starting MLX Model Training: Run='{run_name}', Phase={phase}"
     )
-    logger.info(f"   Epochs: {epochs}")
-
-    pad_token_id = config.get(
-        'tokenizer', {}
-    ).get('pad_token_id', PAD_TOKEN_ID)
-
+    logger.info(f"   Target Epochs: {epochs}")
+    run_save_path = Path(model_save_dir) / run_name
+    start_epoch = 0
     metrics_history = {
         "avg_train_loss": [],
         "val_loss": [],
         "val_accuracy": [],
         "learning_rate": []
     }
-    last_val_metrics = {}
-
-    if wandb is not None and wandb_run is not None:
-        logger.info("📊 W&B logging enabled (manual metric logging).")
-
-    for epoch in range(epochs):
+    if resume_from_checkpoint:
+        model, optimizer, start_epoch, metrics_history = load_checkpoint(
+            model, optimizer, run_save_path
+        )
+    logger.info(
+        f"   Starting from Epoch: {start_epoch}, "
+        f"Training until Epoch: {epochs}"
+    )
+    pad_token_id = config.get(
+        'tokenizer', {}
+    ).get('pad_token_id', PAD_TOKEN_ID)
+    best_val_accuracy = 0.0
+    if metrics_history["val_accuracy"]:
+        best_val_accuracy = max(metrics_history["val_accuracy"])
+    if start_epoch >= epochs:
+        logger.warning(
+            f"Start epoch ({start_epoch}) is >= target epochs ({epochs}). "
+            "Training finished."
+        )
+        return metrics_history, metrics_history
+    for epoch in range(start_epoch, epochs):
         epoch_start_time = time.time()
-
         avg_train_loss = train_epoch_mlx(
             model=model,
             optimizer=optimizer,
@@ -401,59 +509,70 @@ def train_model_mlx(
         )
         metrics_history["avg_train_loss"].append(avg_train_loss)
         epoch_time = time.time() - epoch_start_time
-
-        val_metrics = evaluate_model_mlx(
-            model=model,
-            images_full=val_images,
-            labels_full=val_labels,
-            batch_size=batch_size * 2,
-            phase=phase,
-            pad_token_id=pad_token_id
-        )
-        metrics_history["val_loss"].append(
-            val_metrics.get('val_loss', float('nan'))
-        )
-        metrics_history["val_accuracy"].append(
-            val_metrics.get('val_accuracy', float('nan'))
-        )
-        last_val_metrics = val_metrics
-
+        val_metrics = {}
+        if val_images is not None and val_labels is not None:
+            val_metrics = evaluate_model_mlx(
+                model=model,
+                images_full=val_images,
+                labels_full=val_labels,
+                batch_size=batch_size * 2,
+                phase=phase,
+                pad_token_id=pad_token_id
+            )
+            metrics_history["val_loss"].append(
+                val_metrics.get('val_loss', float('nan'))
+            )
+            metrics_history["val_accuracy"].append(
+                val_metrics.get('val_accuracy', float('nan'))
+            )
+        else:
+            metrics_history["val_loss"].append(float('nan'))
+            metrics_history["val_accuracy"].append(float('nan'))
         current_lr = optimizer.learning_rate.item()
         metrics_history["learning_rate"].append(current_lr)
         log_str = (
             f"✅ Epoch {epoch+1}/{epochs} | Train Loss: {avg_train_loss:.4f} | "
         )
         for k, v in val_metrics.items():
-            format_str = "{:.2f}%" if "accuracy" in k else "{:.4f}"
-            log_str += f"{k}: {format_str.format(v)} | "
+            log_str += f"{k}: {v:.4f} | "
         log_str += f"LR: {current_lr:.6f} | Time: {epoch_time:.2f}s"
         logger.info(log_str)
-
         if wandb is not None and wandb_run is not None:
             try:
-                wandb_log_step = {
-                    k: v[-1] for k, v in metrics_history.items() if v
+                log_dict_epoch = {
+                    "epoch": epoch + 1,
+                    "avg_train_loss": avg_train_loss,
+                    **val_metrics
                 }
-                wandb_log_step["epoch"] = epoch + 1
-                wandb_log_step["epoch_time_sec"] = epoch_time
-                wandb_run.log(wandb_log_step)
+                log_dict_epoch["learning_rate"] = current_lr
+                log_dict_epoch["epoch_time_sec"] = epoch_time
+                wandb_run.log(log_dict_epoch)
             except Exception as e:
                 logger.error(f"❌ W&B epoch log failed: {e}")
-
+        is_best = val_metrics.get('val_accuracy', -1) > best_val_accuracy
+        if is_best:
+            best_val_accuracy = val_metrics['val_accuracy']
+            logger.info(
+                f"🏆 New best validation accuracy: {best_val_accuracy:.2f}%"
+            )
+        if (
+            (epoch + 1) % save_every == 0 or
+            epoch == epochs - 1 or
+            is_best
+        ):
+            save_checkpoint(
+                model,
+                optimizer,
+                epoch,
+                metrics_history,
+                run_save_path,
+                is_best=is_best
+            )
     logger.info("🏁 MLX Training finished.")
-
-    final_save_dir = Path(model_save_dir) / run_name
-    try:
-        final_save_dir.mkdir(parents=True, exist_ok=True)
-        model_path = final_save_dir / "model_weights.safetensors"
-        model.save_weights(str(model_path))
-        logger.info(f"💾 Final model weights saved to: {model_path}")
-    except Exception as e:
-        logger.error(
-            f"❌ Failed to save final MLX weights: {e}", exc_info=True
-        )
-
-    return metrics_history, last_val_metrics
+    save_checkpoint(
+        model, optimizer, epochs - 1, metrics_history, run_save_path
+    )
+    return metrics_history, val_metrics
 
 # --- Test Block ---
 if __name__ == "__main__":
