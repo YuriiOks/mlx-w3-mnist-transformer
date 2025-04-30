@@ -195,7 +195,7 @@ def generate_dynamic_digit_image_pt(
     placed_positions = []
     num_digits = random.randint(0, max_digits)
     if num_digits == 0:
-        return torch.from_numpy(canvas_np).unsqueeze(0), []
+        return torch.from_numpy(canvas_np).unsqueeze(0), [] 
     indices = random.sample(range(num_base_images), num_digits)
     for i in indices:
         digit_pil, digit_label = base_mnist_pil_dataset[i]
