@@ -91,6 +91,7 @@ class PatchEmbedding(nn.Module):
     def _initialize_weights(self):
         """
         Initialize weights for positional embedding and CLS token.
+        Uses truncated normal initialization for both.
         """
         nn.init.trunc_normal_(self.position_embedding, std=.02)
         nn.init.trunc_normal_(self.cls_token, std=.02)
@@ -217,8 +218,8 @@ class Attention(nn.Module):
         self.head_dim = embed_dim // num_heads
         self.heads = nn.ModuleList([
             AttentionHead(
-                embed_dim,
-                self.head_dim,
+                embed_dim=embed_dim,
+                head_dim=self.head_dim,
                 dropout=dropout
             )
             for _ in range(num_heads)
@@ -246,7 +247,12 @@ class Attention(nn.Module):
             torch.Tensor: Output tensor after multi-head attention.
         """
         head_outputs = [
-            head(query, key, value, attn_mask) for head in self.heads
+            head(
+                q=query,
+                k=key,
+                v=value,
+                mask=attn_mask
+            ) for head in self.heads
         ]
         x = torch.cat(head_outputs, dim=-1)
         x = self.proj(x)
