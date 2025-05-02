@@ -17,6 +17,7 @@ from pathlib import Path
 from tqdm import tqdm
 from typing import List, Dict, Optional, Any, Tuple, Callable
 import time
+import numpy as np
 
 # --- Add project root to sys.path for imports ---
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -60,7 +61,7 @@ def train_epoch(
         dataloader (DataLoader): DataLoader for training data.
         criterion (nn.Module): Loss function.
         optimizer (optim.Optimizer): Optimizer.
-        device (torch.device): Device to use.
+        device (torch.device): Device to use for computation.
         epoch_num (int): Current epoch number (0-based).
         total_epochs (int): Total number of epochs.
         wandb_run (Optional[Any]): Weights & Biases run object.
@@ -97,7 +98,8 @@ def train_epoch(
             decoder_input = labels[:, :-1]
             outputs = model(images, decoder_input)
         else:
-            logger.error(f"❌ Forward pass for Phase {phase} not implemented!")
+            logger.error(
+                f"❌ Forward pass for Phase {phase} not implemented!")
             continue
 
         if phase == 1:
@@ -163,7 +165,7 @@ def evaluate_model(
         model (nn.Module): The model to evaluate.
         dataloader (DataLoader): DataLoader for evaluation data.
         criterion (nn.Module): Loss function.
-        device (torch.device): Device to use.
+        device (torch.device): Device to use for computation.
         phase (int): Evaluation phase (1, 2, or 3).
         pad_token_id (int): Padding token id for phase 3.
 
@@ -265,19 +267,30 @@ def save_checkpoint_pt(
     epoch: int,
     metrics_history: Dict,
     save_dir: Path,
-    is_best: bool = False
+    is_best: bool = False,
+    model_config: dict = None,
+    dataset_config: dict = None,
+    phase: int = None
 ):
     """
     Save PyTorch model checkpoint.
 
     Args:
         model (nn.Module): Model to save.
-        optimizer (optim.Optimizer): Optimizer to save.
-        scheduler (Optional[_LRScheduler]): Scheduler to save.
+        optimizer (optim.Optimizer): Optimizer.
+        scheduler (Optional[_LRScheduler]): LR scheduler.
         epoch (int): Current epoch.
         metrics_history (Dict): Training/validation metrics.
         save_dir (Path): Directory to save checkpoint.
         is_best (bool): If True, also save as best model.
+        model_config (dict): Model config for reproducibility.
+        dataset_config (dict): Dataset config for reproducibility.
+        phase (int): Training phase.
+
+    Saves:
+        - model_final.pth: Model weights.
+        - training_state_pt.pkl: Optimizer, scheduler, metrics, configs.
+        - best_model_pt.pth: Best model weights (if is_best).
     """
     try:
         save_dir.mkdir(parents=True, exist_ok=True)
@@ -289,42 +302,48 @@ def save_checkpoint_pt(
             'optimizer_state_dict': optimizer.state_dict(),
             'scheduler_state_dict': scheduler.state_dict() if scheduler else None,
             'metrics_history': metrics_history,
+            'model_config': model_config,
+            'dataset_config': dataset_config,
+            'phase': phase
         }
         with open(state_path, 'wb') as f:
             pickle.dump(state, f)
-        logger.info(f"💾 PyTorch Checkpoint saved to {save_dir} (Epoch {epoch+1})")
+        logger.info(
+            f"\U0001F4BE PyTorch Checkpoint saved to {save_dir} (Epoch {epoch+1})"
+        )
         if is_best:
             best_model_path = save_dir.parent / "best_model_pt.pth"
             torch.save(model.state_dict(), best_model_path)
-            logger.info(f"🏆 Best PT model weights saved to {best_model_path}")
+            logger.info(
+                f"\U0001F3C6 Best PT model weights saved to {best_model_path}"
+            )
     except Exception as e:
-        logger.error(f"❌ Failed to save PyTorch checkpoint: {e}", exc_info=True)
+        logger.error(
+            f"❌ Failed to save PyTorch checkpoint: {e}", exc_info=True
+        )
 
 def load_checkpoint_pt(
-    model: nn.Module,
-    optimizer: optim.Optimizer,
-    scheduler: Optional[_LRScheduler],
     save_dir: Path,
     device: torch.device
-) -> Tuple[
-    nn.Module,
-    optim.Optimizer,
-    Optional[_LRScheduler],
-    int,
-    Dict
-]:
+) -> tuple:
     """
-    Load PyTorch checkpoint if exists, otherwise returns defaults.
+    Load PyTorch checkpoint and configs for reproducibility.
 
     Args:
-        model (nn.Module): Model to load weights into.
-        optimizer (optim.Optimizer): Optimizer to load state.
-        scheduler (Optional[_LRScheduler]): Scheduler to load state.
-        save_dir (Path): Directory containing checkpoint.
-        device (torch.device): Device for model/optimizer.
+        save_dir (Path): Directory containing checkpoint files.
+        device (torch.device): Device to map tensors.
 
     Returns:
-        Tuple: (model, optimizer, scheduler, start_epoch, metrics_history)
+        tuple: (
+            model_state_dict,
+            optimizer_state_dict,
+            scheduler_state_dict,
+            start_epoch,
+            metrics_history,
+            model_config,
+            dataset_config,
+            phase
+        )
     """
     model_path = save_dir / "model_final.pth"
     state_path = save_dir / "training_state_pt.pkl"
@@ -335,33 +354,49 @@ def load_checkpoint_pt(
         "val_accuracy": [],
         "learning_rate": []
     }
+    model_state_dict = None
+    optimizer_state_dict = None
+    scheduler_state_dict = None
+    model_config = None
+    dataset_config = None
+    phase = None
     if model_path.exists() and state_path.exists():
         logger.info(f"♻️ Resuming PyTorch training from checkpoint in {save_dir}")
         try:
-            model.load_state_dict(torch.load(model_path, map_location=device))
-            model.to(device)
+            model_state_dict = torch.load(model_path, map_location=device)
             with open(state_path, 'rb') as f:
                 state = pickle.load(f)
-            optimizer.load_state_dict(state['optimizer_state_dict'])
-            for state_val in optimizer.state.values():
-                for k, v in state_val.items():
-                    if isinstance(v, torch.Tensor):
-                        state_val[k] = v.to(device)
-            if scheduler and state.get('scheduler_state_dict'):
-                scheduler.load_state_dict(state['scheduler_state_dict'])
+            optimizer_state_dict = state.get('optimizer_state_dict')
+            scheduler_state_dict = state.get('scheduler_state_dict')
             start_epoch = state.get('epoch', 0)
             loaded_history = state.get('metrics_history', {})
             for key in metrics_history.keys():
-                 metrics_history[key] = loaded_history.get(key, [])
-            logger.info(f"✅ PT Checkpoint loaded. Resuming from epoch {start_epoch}.")
+                metrics_history[key] = loaded_history.get(key, [])
+            model_config = state.get('model_config')
+            dataset_config = state.get('dataset_config')
+            phase = state.get('phase')
+            logger.info(
+                f"✅ PT Checkpoint loaded. Resuming from epoch {start_epoch}."
+            )
         except Exception as e:
-            logger.error(f"❌ Failed loading PT checkpoint: {e}. Starting fresh.",
-                         exc_info=True)
+            logger.error(
+                f"❌ Failed loading PT checkpoint: {e}. Starting fresh.",
+                exc_info=True
+            )
             start_epoch = 0
             metrics_history = {k: [] for k in metrics_history}
     else:
         logger.info("No PyTorch checkpoint found. Starting training from scratch.")
-    return model, optimizer, scheduler, start_epoch, metrics_history
+    return (
+        model_state_dict,
+        optimizer_state_dict,
+        scheduler_state_dict,
+        start_epoch,
+        metrics_history,
+        model_config,
+        dataset_config,
+        phase
+    )
 
 def train_model(
     model: nn.Module,
@@ -377,7 +412,9 @@ def train_model(
     wandb_run: Optional[Any] = None,
     lr_scheduler: Optional[Any] = None,
     resume_from_checkpoint: bool = False,
-    save_every: int = 5
+    save_every: int = 5,
+    start_epoch: int = 0,
+    initial_metrics_history: Optional[Dict[str, list]] = None
 ) -> Dict[str, List[float]]:
     """
     Train the model for multiple epochs, with optional validation,
@@ -387,7 +424,7 @@ def train_model(
         model (nn.Module): Model to train.
         train_dataloader (DataLoader): Training data loader.
         optimizer (optim.Optimizer): Optimizer.
-        device (torch.device): Device to use.
+        device (torch.device): Device to use for computation.
         epochs (int): Number of epochs to train.
         model_save_dir (str | Path): Directory to save checkpoints.
         config (dict): Training/configuration dictionary.
@@ -398,29 +435,62 @@ def train_model(
         lr_scheduler (Optional[Any]): Learning rate scheduler.
         resume_from_checkpoint (bool): Resume from checkpoint if True.
         save_every (int): Save checkpoint every N epochs.
+        start_epoch (int): Epoch to start training from.
+        initial_metrics_history (Optional[Dict[str, list]]): Initial metrics history.
 
     Returns:
         Dict[str, List[float]]: Training/validation metrics history.
     """
-    logger.info(f"🚀 Starting PyTorch Model Training: Run='{run_name}', "
-                f"Phase={phase}")
+    logger.info(
+        f"🚀 Starting PyTorch Model Training: Run='{run_name}', Phase={phase}"
+    )
     run_save_path = Path(model_save_dir) / run_name
-    start_epoch = 0
-    metrics_history = {
-        "avg_train_loss": [],
-        "val_loss": [],
-        "val_accuracy": [],
-        "learning_rate": []
-    }
+    if initial_metrics_history is not None:
+        metrics_history = initial_metrics_history
+    else:
+        metrics_history = {
+            "avg_train_loss": [],
+            "val_loss": [],
+            "val_accuracy": [],
+            "learning_rate": []
+        }
+    model_config = config.get('model', {})
+    dataset_config = config.get('dataset', {})
     if resume_from_checkpoint:
-         model, optimizer, lr_scheduler, start_epoch, metrics_history = \
-             load_checkpoint_pt(
-                 model, optimizer, lr_scheduler, run_save_path, device
-             )
+        (
+            model_state_dict,
+            optimizer_state_dict,
+            scheduler_state_dict,
+            start_epoch,
+            metrics_history,
+            loaded_model_cfg,
+            loaded_dataset_cfg,
+            loaded_phase
+        ) = load_checkpoint_pt(run_save_path, device)
+        # Re-instantiate model/optimizer/scheduler if needed using loaded configs
+        # (This logic should be handled in the main script for full reproducibility)
+        if model_state_dict is not None:
+            model.load_state_dict(model_state_dict)
+        if optimizer_state_dict is not None:
+            optimizer.load_state_dict(optimizer_state_dict)
+            for state_val in optimizer.state.values():
+                for k, v in state_val.items():
+                    if isinstance(v, torch.Tensor):
+                        state_val[k] = v.to(device)
+        if lr_scheduler and scheduler_state_dict is not None:
+            lr_scheduler.load_state_dict(scheduler_state_dict)
+        if loaded_model_cfg is not None:
+            model_config = loaded_model_cfg
+        if loaded_dataset_cfg is not None:
+            dataset_config = loaded_dataset_cfg
+        if loaded_phase is not None:
+            phase = loaded_phase
     model.to(device)
     logger.info(f"   Target Epochs: {epochs}")
-    logger.info(f"   Starting from Epoch: {start_epoch}, "
-                f"Training until Epoch: {epochs}")
+    logger.info(
+        f"   Starting from Epoch: {start_epoch}, "
+        f"Training until Epoch: {epochs}"
+    )
     pad_token_id = config.get('tokenizer', {}).get('pad_token_id', PAD_TOKEN_ID)
     if phase == 3:
         criterion = nn.CrossEntropyLoss(ignore_index=pad_token_id)
@@ -439,6 +509,23 @@ def train_model(
     if start_epoch >= epochs:
         logger.warning("Training already completed based on checkpoint.")
         return metrics_history
+    if wandb_run is not None and metrics_history is not None and start_epoch > 0:
+        # Log all previous metrics to W&B before resuming
+        for epoch_idx in range(start_epoch):
+            log_dict = {}
+            if len(metrics_history.get("avg_train_loss", [])) > epoch_idx:
+                log_dict["avg_train_loss"] = metrics_history["avg_train_loss"][epoch_idx]
+            if len(metrics_history.get("val_loss", [])) > epoch_idx:
+                log_dict["val_loss"] = metrics_history["val_loss"][epoch_idx]
+            if len(metrics_history.get("val_accuracy", [])) > epoch_idx:
+                log_dict["val_accuracy"] = metrics_history["val_accuracy"][epoch_idx]
+            if len(metrics_history.get("learning_rate", [])) > epoch_idx:
+                log_dict["learning_rate"] = metrics_history["learning_rate"][epoch_idx]
+            log_dict["epoch"] = epoch_idx + 1
+            try:
+                wandb_run.log(log_dict, step=epoch_idx + 1)
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to log previous metrics to W&B: {e}")
     for epoch in range(start_epoch, epochs):
         epoch_start_time = time.time()
         avg_train_loss = train_epoch(
@@ -460,12 +547,12 @@ def train_model(
         val_metrics = {}
         if val_dataloader:
             val_metrics = evaluate_model(
-                model,
-                val_dataloader,
-                criterion,
-                device,
-                phase,
-                pad_token_id
+                model=model,
+                dataloader=val_dataloader,
+                criterion=criterion,
+                device=device,
+                phase=phase,
+                pad_token_id=pad_token_id
             )
             metrics_history["val_loss"].append(
                 val_metrics.get('val_loss', float('nan')))
@@ -482,17 +569,22 @@ def train_model(
         is_best = current_val_acc > best_val_accuracy
         if is_best:
             best_val_accuracy = current_val_acc
-            logger.info(f"🏆 New best validation accuracy: "
-                        f"{best_val_accuracy:.2f}% at Epoch {epoch+1}")
+            logger.info(
+                f"🏆 New best validation accuracy: "
+                f"{best_val_accuracy:.2f}% at Epoch {epoch+1}"
+            )
         if (epoch + 1) % save_every == 0 or epoch == epochs - 1 or is_best:
             save_checkpoint_pt(
-                model,
-                optimizer,
-                lr_scheduler,
-                epoch,
-                metrics_history,
-                run_save_path,
-                is_best
+                model=model,
+                optimizer=optimizer,
+                scheduler=lr_scheduler,
+                epoch=epoch,
+                metrics_history=metrics_history,
+                save_dir=run_save_path,
+                is_best=is_best,
+                model_config=model_config,
+                dataset_config=dataset_config,
+                phase=phase
             )
     logger.info("🏁 PyTorch Training finished.")
     return metrics_history
