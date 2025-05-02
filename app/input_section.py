@@ -19,7 +19,8 @@ current_dir = Path(__file__).parent
 project_root = current_dir.parent
 if str(project_root) not in sys.path:
     print(
-        f"🎨 [Input Section] Adding project root to sys.path: {project_root}"
+        f"🎨 [Input Section] Adding project root to sys.path: "
+        f"{project_root}"
     )
     sys.path.insert(0, str(project_root))
 
@@ -27,10 +28,14 @@ if str(project_root) not in sys.path:
 try:
     from utils import logger
     from src.mnist_transformer_mlx.dataset_mlx import (
-        numpy_normalize, DEFAULT_DATA_DIR
+        numpy_normalize,
+        DEFAULT_DATA_DIR
     )
     from utils.tokenizer_utils import (
-        sequence_to_labels, PAD_TOKEN_ID, START_TOKEN_ID, END_TOKEN_ID
+        sequence_to_labels,
+        PAD_TOKEN_ID,
+        START_TOKEN_ID,
+        END_TOKEN_ID
     )
     from app.model_loader import preprocess_image
     try:
@@ -53,7 +58,8 @@ except ImportError as e:
     TOKENIZER_AVAILABLE = False
     GENERATOR_AVAILABLE = False
     TORCHVISION_AVAILABLE = False
-    def preprocess_image(*args): return None
+    def preprocess_image(*args):
+        return None
 
 
 def input_controls(
@@ -82,6 +88,9 @@ def input_controls(
 
     phase_loaded = session_state.phase_loaded
     framework = session_state.get('framework', 'MLX')
+    # If a real PyTorch model is loaded, force framework to 'PyTorch'
+    if hasattr(session_state.get('model', None), 'forward'):
+        framework = 'PyTorch'
 
     input_state = {
         'processed_image': None,
@@ -105,12 +114,18 @@ def input_controls(
 
     # --- Input Method Selection ---
     input_options = ["Draw Digit", "Upload Image"]
-    if TORCHVISION_AVAILABLE and GENERATOR_AVAILABLE and TOKENIZER_AVAILABLE:
+    if (
+        TORCHVISION_AVAILABLE and
+        GENERATOR_AVAILABLE and
+        TOKENIZER_AVAILABLE
+    ):
         input_options.append("Generate Sample")
 
     input_method = st.radio(
-        f"Input method for Phase {phase_loaded} (Target Size: {input_size}x{input_size}):",
-        input_options, key=f"input_{phase_loaded}_{framework}", # Key includes framework
+        f"Input method for Phase {phase_loaded} "
+        f"(Target Size: {input_size}x{input_size}):",
+        input_options,
+        key=f"input_{phase_loaded}_{framework}",
         horizontal=True
     )
 
@@ -135,9 +150,11 @@ def input_controls(
             drawing_mode="freedraw",
             key=f"canvas_{phase_loaded}",
         )
+        # Move Predict button right under the canvas
+        predict_clicked = st.button("Predict", key=f"predict_button_{phase_loaded}")
         if (
-            canvas_result.image_data is not None
-            and canvas_result.image_data.sum() > 0
+            canvas_result.image_data is not None and
+            canvas_result.image_data.sum() > 0
         ):
             img_drawn_rgba = canvas_result.image_data.astype(np.uint8)
             display_image_pil = Image.fromarray(img_drawn_rgba).convert("L")
@@ -146,8 +163,10 @@ def input_controls(
                 input_size,
                 framework
             )
+    else:
+        predict_clicked = st.button("Predict", key=f"predict_button_{phase_loaded}")
 
-    elif input_method == "Upload Image":
+    if input_method == "Upload Image":
         uploaded_file = st.file_uploader(
             f"Upload {input_size}x{input_size} image...",
             type=["png", "jpg", "jpeg"],
@@ -160,56 +179,66 @@ def input_controls(
                 input_size,
                 framework
             )
-
     elif input_method == "Generate Sample":
         st.write(f"Generate a random sample for Phase {phase_loaded} ({input_size}x{input_size}):")
-        if st.button("Generate", key=f"generate_{phase_loaded}"):
-            data_dir = config['paths'].get('data_dir', DEFAULT_DATA_DIR)
-            base_pil, base_lbl = None, None
-            try:
-                ds = tv_datasets.MNIST(
-                    root=data_dir,
-                    train=False,
-                    download=True,
-                    transform=None
-                )
-                base_pil = [img for img, _ in ds]
-                base_lbl = np.array([lbl for _, lbl in ds], dtype=np.uint32)
-            except Exception as e:
-                st.error(f"Failed MNIST load for generator: {e}")
-
-            if base_pil and base_lbl is not None:
-                cfg_ds = config.get('dataset', {})
-                cfg_tk = config.get('tokenizer', {})
-                # Use the generator for all phases, but adjust parameters
-                canvas_np, target_seq_np = generate_dynamic_digit_image_seq_np(
-                    base_pil,
-                    base_lbl,
-                    canvas_size=input_size,
-                    max_digits=cfg_ds.get('max_digits_phase3', 7) if phase_loaded == 3 else 1,
-                    augment_digits=True,
-                    max_seq_len=cfg_ds.get('max_seq_len', 10),
-                    start_token_id=cfg_tk.get('start_token_id', START_TOKEN_ID),
-                    end_token_id=cfg_tk.get('end_token_id', END_TOKEN_ID),
-                    pad_token_id=cfg_tk.get('pad_token_id', PAD_TOKEN_ID),
-                )
-                if canvas_np is not None:
-                    display_image_pil = Image.fromarray(
-                        canvas_np.squeeze().astype(np.uint8)
+        st.caption("The 'Generated Sample Ground Truth' below is the correct label for the generated image. This is what the model should predict.")
+        generate_clicked = st.button("Generate", key=f"generate_{phase_loaded}")
+        if generate_clicked or (
+            'generated_sample' in session_state and session_state.get('generated_sample_phase') == phase_loaded
+        ):
+            if generate_clicked:
+                data_dir = config['paths'].get('data_dir', DEFAULT_DATA_DIR)
+                base_pil, base_lbl = None, None
+                try:
+                    ds = tv_datasets.MNIST(
+                        root=data_dir,
+                        train=False,
+                        download=True,
+                        transform=None
                     )
-                    processed_image_np = numpy_normalize(canvas_np)
-                    if TOKENIZER_AVAILABLE and target_seq_np is not None:
-                        decoded_labels = sequence_to_labels(
-                            target_seq_np.tolist()
-                        )
-                        st.info(
-                            f"Generated Sample Ground Truth: `{decoded_labels}`"
-                        )
-                        session_state.generated_target_seq = (
-                            target_seq_np.tolist()
-                        )
-                else:
-                    st.error("Failed to generate sample.")
+                    base_pil = [img for img, _ in ds]
+                    base_lbl = np.array([lbl for _, lbl in ds], dtype=np.uint32)
+                except Exception as e:
+                    st.error(f"Failed MNIST load for generator: {e}")
+
+                if base_pil and base_lbl is not None:
+                    cfg_ds = config.get('dataset', {})
+                    cfg_tk = config.get('tokenizer', {})
+                    canvas_np, target_seq_np = generate_dynamic_digit_image_seq_np(
+                        base_pil, base_lbl, input_size,
+                        cfg_ds.get('max_digits_phase3', 7) if phase_loaded == 3 else 1,
+                        True,
+                        cfg_ds.get('max_seq_len', 10),
+                        cfg_tk.get('start_token_id', START_TOKEN_ID),
+                        cfg_tk.get('end_token_id', END_TOKEN_ID),
+                        cfg_tk.get('pad_token_id', PAD_TOKEN_ID),
+                    )
+                    if canvas_np is not None:
+                        session_state['generated_sample'] = canvas_np
+                        session_state['generated_sample_label'] = target_seq_np
+                        session_state['generated_sample_phase'] = phase_loaded
+                    else:
+                        st.error("Failed to generate sample.")
+                        session_state['generated_sample'] = None
+                        session_state['generated_sample_label'] = None
+                        session_state['generated_sample_phase'] = None
+            # Use the last generated sample if it exists and is for this phase
+            canvas_np = session_state.get('generated_sample', None)
+            target_seq_np = session_state.get('generated_sample_label', None)
+            if canvas_np is not None:
+                display_image_pil = Image.fromarray(
+                    canvas_np.squeeze().astype(np.uint8)
+                )
+                processed_image_np = numpy_normalize(canvas_np)
+                if target_seq_np is not None:
+                    if phase_loaded == 1:
+                        label_val = int(target_seq_np) if np.isscalar(target_seq_np) or getattr(target_seq_np, 'size', 0) == 1 else int(target_seq_np[0])
+                        st.info(f"Generated Sample Ground Truth: `{label_val}`")
+                        session_state.generated_target_seq = label_val
+                    elif TOKENIZER_AVAILABLE:
+                        decoded_labels = sequence_to_labels(target_seq_np.tolist())
+                        st.info(f"Generated Sample Ground Truth: `{decoded_labels}`")
+                        session_state.generated_target_seq = target_seq_np.tolist()
 
     # Display the input image (before normalization)
     if display_image_pil:
@@ -218,7 +247,34 @@ def input_controls(
             caption='Input Image (Before Preprocessing)',
             use_container_width=True
         )
+        # Add download button for the drawn/uploaded image
+        import io
+        buf = io.BytesIO()
+        display_image_pil.save(buf, format='PNG')
+        st.download_button(
+            label="Download Input Image as PNG",
+            data=buf.getvalue(),
+            file_name="input_image.png",
+            mime="image/png"
+        )
+        # Debug: Show pixel values and invert option
+        with st.expander("🔬 Inspect Raw Pixel Values & Invert Image"):
+            arr = np.array(display_image_pil)
+            st.write(f"Shape: {arr.shape}, dtype: {arr.dtype}")
+            st.write(
+                f"Min: {arr.min()}, Max: {arr.max()}, "
+                f"Mean: {arr.mean():.2f}"
+            )
+            st.write(arr)
+            if st.checkbox("Show Inverted Image", key="invert_img"):
+                inv_img = Image.fromarray(255 - arr)
+                st.image(
+                    inv_img,
+                    caption="Inverted Image",
+                    use_container_width=True
+                )
 
     input_state['processed_image'] = processed_image_np
     input_state['display_image'] = display_image_pil
+    input_state['predict_clicked'] = predict_clicked
     return input_state
