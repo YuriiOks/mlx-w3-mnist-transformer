@@ -1,3 +1,4 @@
+import streamlit as st
 # MNIST Digit Classifier (Transformer) - Unified App
 # File: app/app.py
 # Copyright (c) 2025 Backprop Bunch Team (Yurii, Amy, Guillaume, Aygun)
@@ -5,9 +6,10 @@
 # Created: 2025-05-02
 # Updated: 2025-05-02
 
-import streamlit as st
 import sys
 from pathlib import Path
+
+st.set_page_config(page_title="MNIST ViT Kitchen", layout="wide")
 
 # --- Add project root to sys.path ---
 try:
@@ -105,10 +107,6 @@ def handle_model_loading(
 
 
 # --- Main App Logic ---
-st.set_page_config(
-    page_title="MNIST ViT Kitchen",
-    layout="wide"
-)
 st.title("🍳 The MNIST Transformer Kitchen")
 
 # Load config (handle potential failure)
