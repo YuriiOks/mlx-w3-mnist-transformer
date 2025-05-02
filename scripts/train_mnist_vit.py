@@ -24,7 +24,8 @@ import pickle
 scriPyTorch_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(scriPyTorch_dir)
 if project_root not in sys.path:
-    print(f"🚀 [train_script] Adding project root to sys.path: {project_root}")
+    print(f"🚀 [train_script] Adding project root to sys.path: "
+          f"{project_root}")
     sys.path.insert(0, project_root)
 
 # --- Project-specific imports ---
@@ -33,8 +34,8 @@ from utils import (
     save_metrics, plot_metrics
 )
 from src.mnist_transformer.dataset import (
-    get_mnist_dataset, get_dataloader, # Use generic dataloader name
-    MNISTGridDataset, MNISTDynamicDataset, # Import Phase 2/3 datasets
+    get_mnist_dataset, get_dataloader,
+    MNISTGridDataset, MNISTDynamicDataset,
     DEFAULT_DATA_DIR,
     get_mnist_transforms
 )
@@ -46,8 +47,7 @@ from src.mnist_transformer.trainer import (
     load_checkpoint_pt
 )
 
-from torchvision import datasets as datasets # Use alias to avoid confusion
-
+from torchvision import datasets as datasets
 
 try:
     from utils.tokenizer_utils import DECODER_VOCAB_SIZE, PAD_TOKEN_ID
@@ -63,15 +63,32 @@ except ImportError:
     wandb = None
 
 def parse_args(config: dict):
-    """ Parses command-line arguments, using config for defaults. """
+    """
+    Parses command-line arguments, using config for defaults.
+
+    Args:
+        config (dict): Configuration dictionary loaded from YAML.
+
+    Returns:
+        argparse.Namespace: Parsed command-line arguments.
+    """
     parser = argparse.ArgumentParser(
         description="Train MNIST Vision Transformer (PyTorch)."
     )
 
-    parser.add_argument('--phase', type=int, default=1, choices=[1, 2, 3],
-        help='Training phase (1: single, 2: 2x2 grid, 3: dynamic seq).')
-    parser.add_argument('--config-path', type=str, default='config.yaml',
-        help='Path to config file.')
+    parser.add_argument(
+        '--phase',
+        type=int,
+        default=1,
+        choices=[1, 2, 3],
+        help='Training phase (1: single, 2: 2x2 grid, 3: dynamic seq).'
+    )
+    parser.add_argument(
+        '--config-path',
+        type=str,
+        default='config.yaml',
+        help='Path to config file.'
+    )
 
     temp_args, _ = parser.parse_known_args()
     phase = temp_args.phase
@@ -84,41 +101,81 @@ def parse_args(config: dict):
     paths_cfg = config.get('paths', {})
     eval_cfg = config.get('evaluation', {})
 
-    parser.add_argument('--epochs', type=int,
-        default=train_cfg.get('epochs', 10),
-        help='Number of training epochs.')
-    parser.add_argument('--batch-size', type=int,
-        default=train_cfg.get('batch_size', 128),
-        help='Training batch size.')
-    parser.add_argument('--lr', type=float,
-        default=train_cfg.get('base_lr', 1e-3),
-        help='Base learning rate.')
-    parser.add_argument('--wd', type=float,
-        default=train_cfg.get('weight_decay', 0.03),
-        help='Weight decay for optimizer.')
-
-    parser.add_argument('--model-save-dir', type=str,
-        default=paths_cfg.get('model_save_dir', 'models/mnist_vit'),
-        help='Base directory to save models.')
-
-    parser.add_argument('--wandb-project', type=str,
-        default='mnist-vit-transformer', help='W&B project name.')
-    parser.add_argument('--wandb-entity', type=str, default=None,
-        help='W&B entity.')
-    parser.add_argument('--wandb-run-name', type=str, default=None,
-        help='Custom W&B run name.')
-    parser.add_argument('--no-wandb', action='store_true', default=False,
-        help='Disable W&B logging.')
-
-    parser.add_argument('--num-workers', type=int,
-        default=os.cpu_count() // 2 if os.cpu_count() else 0,
-        help='Number of DataLoader workers.')
-    parser.add_argument('--seed', type=int, default=42,
-        help='Random seed.')
-
     parser.add_argument(
-        '--resume', action='store_true', default=False,
+        '--epochs',
+        type=int,
+        default=train_cfg.get('epochs', 10),
+        help='Number of training epochs.'
+    )
+    parser.add_argument(
+        '--batch-size',
+        type=int,
+        default=train_cfg.get('batch_size', 128),
+        help='Training batch size.'
+    )
+    parser.add_argument(
+        '--lr',
+        type=float,
+        default=train_cfg.get('base_lr', 1e-3),
+        help='Base learning rate.'
+    )
+    parser.add_argument(
+        '--wd',
+        type=float,
+        default=train_cfg.get('weight_decay', 0.03),
+        help='Weight decay for optimizer.'
+    )
+    parser.add_argument(
+        '--model-save-dir',
+        type=str,
+        default=paths_cfg.get('model_save_dir', 'models/mnist_vit'),
+        help='Base directory to save models.'
+    )
+    parser.add_argument(
+        '--wandb-project',
+        type=str,
+        default='mnist-vit-transformer',
+        help='W&B project name.'
+    )
+    parser.add_argument(
+        '--wandb-entity',
+        type=str,
+        default=None,
+        help='W&B entity.'
+    )
+    parser.add_argument(
+        '--wandb-run-name',
+        type=str,
+        default=None,
+        help='Custom W&B run name.'
+    )
+    parser.add_argument(
+        '--no-wandb',
+        action='store_true',
+        default=False,
+        help='Disable W&B logging.'
+    )
+    parser.add_argument(
+        '--num-workers',
+        type=int,
+        default=os.cpu_count() // 2 if os.cpu_count() else 0,
+        help='Number of DataLoader workers.'
+    )
+    parser.add_argument(
+        '--seed',
+        type=int,
+        default=42,
+        help='Random seed.'
+    )
+    parser.add_argument(
+        '--resume',
+        action='store_true',
+        default=False,
         help='Resume training from the latest checkpoint.'
+    )
+    parser.add_argument(
+        '--resume-dir', type=str, default=None,
+        help='Explicit path to checkpoint directory to resume from (overrides run name logic).'
     )
 
     args = parser.parse_args()
@@ -130,6 +187,24 @@ def parse_args(config: dict):
     return args
 
 def main():
+    """
+    Main entry point for training the MNIST Vision Transformer model.
+
+    Loads configuration, prepares data, initializes model, optimizer,
+    scheduler, and handles training, evaluation, checkpointing, and
+    experiment tracking.
+
+    Steps:
+        1. Load config and parse arguments.
+        2. Set random seeds and device.
+        3. Initialize W&B run if enabled.
+        4. Prepare datasets and dataloaders for the selected phase.
+        5. Instantiate model, loss, optimizer, and scheduler.
+        6. Resume from checkpoint if requested.
+        7. Train the model and collect metrics.
+        8. Save metrics, plots, and model.
+        9. Log artifacts to W&B if enabled.
+    """
     config = load_config()
     if config is None:
         return
@@ -175,50 +250,77 @@ def main():
 
     if args.phase == 1:
         p1_transform_train = get_mnist_transforms(
-            image_size=dataset_cfg['image_size'], augment=True
+            image_size=dataset_cfg['image_size'],
+            augment=True
         )
         p1_transform_val = get_mnist_transforms(
-            image_size=dataset_cfg['image_size'], augment=False
+            image_size=dataset_cfg['image_size'],
+            augment=False
         )
         train_dataset = get_mnist_dataset(
-            train=True, data_dir=data_dir, transform=p1_transform_train
+            train=True,
+            data_dir=data_dir,
+            transform=p1_transform_train
         )
         val_dataset = get_mnist_dataset(
-            train=False, data_dir=data_dir, transform=p1_transform_val
+            train=False,
+            data_dir=data_dir,
+            transform=p1_transform_val
         )
     elif args.phase == 2:
-        base_transform = get_mnist_transforms(image_size=28, augment=False)
+        base_transform = get_mnist_transforms(
+            image_size=28,
+            augment=False
+        )
         base_train_dataset = get_mnist_dataset(
-            train=True, data_dir=data_dir, transform=base_transform
+            train=True,
+            data_dir=data_dir,
+            transform=base_transform
         )
         base_val_dataset = get_mnist_dataset(
-            train=False, data_dir=data_dir, transform=base_transform
+            train=False,
+            data_dir=data_dir,
+            transform=base_transform
         )
         if base_train_dataset and base_val_dataset:
             train_set_length = len(base_train_dataset)
             val_set_length = len(base_val_dataset)
             p2_grid_size = dataset_cfg.get('image_size_phase2', 56)
             train_dataset = MNISTGridDataset(
-                base_train_dataset, train_set_length, p2_grid_size
+                base_train_dataset,
+                train_set_length,
+                p2_grid_size
             )
             val_dataset = MNISTGridDataset(
-                base_val_dataset, val_set_length, p2_grid_size
+                base_val_dataset,
+                val_set_length,
+                p2_grid_size
             )
     elif args.phase == 3:
         base_train_pil = datasets.MNIST(
-            root=data_dir, train=True, download=True, transform=None
+            root=data_dir,
+            train=True,
+            download=True,
+            transform=None
         )
         base_val_pil = datasets.MNIST(
-            root=data_dir, train=False, download=True, transform=None
+            root=data_dir,
+            train=False,
+            download=True,
+            transform=None
         )
         if base_train_pil and base_val_pil:
             train_set_length = len(base_train_pil)
             val_set_length = len(base_val_pil)
             train_dataset = MNISTDynamicDataset(
-                base_train_pil, train_set_length, config
+                base_train_pil,
+                train_set_length,
+                config
             )
             val_dataset = MNISTDynamicDataset(
-                base_val_pil, val_set_length, config
+                base_val_pil,
+                val_set_length,
+                config
             )
     else:
         logger.error(f"❌ Phase {args.phase} data loading not implemented!")
@@ -236,10 +338,16 @@ def main():
         'batch_size', args.batch_size * 2
     )
     train_dataloader = get_dataloader(
-        train_dataset, args.batch_size, shuffle=True, num_workers=args.num_workers
+        train_dataset,
+        args.batch_size,
+        shuffle=True,
+        num_workers=args.num_workers
     )
     val_dataloader = get_dataloader(
-        val_dataset, eval_batch_size, shuffle=False, num_workers=args.num_workers
+        val_dataset,
+        eval_batch_size,
+        shuffle=False,
+        num_workers=args.num_workers
     )
 
     logger.info(f"--- Initializing PyTorch Model for Phase {args.phase} ---")
@@ -248,7 +356,8 @@ def main():
 
     if args.phase == 1 or args.phase == 2:
         img_size = dataset_cfg.get(
-            f'image_size_phase{args.phase}', dataset_cfg['image_size']
+            f'image_size_phase{args.phase}',
+            dataset_cfg['image_size']
         )
         patch_size = dataset_cfg.get('patch_size')
         num_outputs = dataset_cfg.get(
@@ -256,13 +365,15 @@ def main():
         )
         num_classes = dataset_cfg.get('num_classes')
         model = VisionTransformer(
-            img_size=img_size, patch_size=patch_size,
+            img_size=img_size,
+            patch_size=patch_size,
             in_channels=dataset_cfg['in_channels'],
-            num_classes=num_classes, embed_dim=model_cfg['embed_dim'],
-            depth=model_cfg['depth'], num_heads=model_cfg['num_heads'],
+            num_classes=num_classes,
+            embed_dim=model_cfg['embed_dim'],
+            depth=model_cfg['depth'],
+            num_heads=model_cfg['num_heads'],
             mlp_ratio=model_cfg['mlp_ratio'],
             dropout=model_cfg.get('dropout', 0.1),
-            attention_dropout=model_cfg.get('attention_dropout', 0.1),
             num_outputs=num_outputs
         )
     elif args.phase == 3:
@@ -270,7 +381,8 @@ def main():
         patch_size = dataset_cfg.get('patch_size_phase3')
         decoder_vocab_size = tokenizer_cfg.get('vocab_size')
         model = EncoderDecoderViT(
-            img_size=img_size, patch_size=patch_size,
+            img_size=img_size,
+            patch_size=patch_size,
             in_channels=dataset_cfg['in_channels'],
             encoder_embed_dim=model_cfg['embed_dim'],
             encoder_depth=model_cfg['depth'],
@@ -280,11 +392,11 @@ def main():
             decoder_depth=model_cfg['decoder_depth'],
             decoder_num_heads=model_cfg['decoder_num_heads'],
             mlp_ratio=model_cfg['mlp_ratio'],
-            dropout=model_cfg.get('dropout', 0.1),
-            attention_dropout=model_cfg.get('attention_dropout', 0.1)
+            dropout=model_cfg.get('dropout', 0.1)
         )
     else:
-        logger.error(f"❌ Model instantiation for Phase {args.phase} not defined!")
+        logger.error(f"❌ Model instantiation for Phase {args.phase} "
+                     f"not defined!")
         if run:
             run.finish(exit_code=1)
         return
@@ -293,7 +405,8 @@ def main():
     if args.phase == 3:
         criterion = nn.CrossEntropyLoss(ignore_index=pad_token_id)
         logger.info(
-            f"Using CrossEntropyLoss with ignore_index={pad_token_id} for Phase 3."
+            f"Using CrossEntropyLoss with ignore_index={pad_token_id} "
+            f"for Phase 3."
         )
     else:
         criterion = nn.CrossEntropyLoss()
@@ -302,11 +415,15 @@ def main():
     optimizer_name = config.get("training", {}).get("optimizer", "AdamW")
     if optimizer_name.lower() == "adamw":
         optimizer = optim.AdamW(
-            model.parameters(), lr=args.lr, weight_decay=args.wd
+            model.parameters(),
+            lr=args.lr,
+            weight_decay=args.wd
         )
     else:
         optimizer = optim.Adam(
-            model.parameters(), lr=args.lr, weight_decay=args.wd
+            model.parameters(),
+            lr=args.lr,
+            weight_decay=args.wd
         )
     logger.info(f"Optimizer: {optimizer_name} (LR={args.lr}, WD={args.wd})")
 
@@ -314,7 +431,9 @@ def main():
         f"phase{args.phase}", {}
     ).get("epochs", args.epochs)
     lr_scheduler = CosineAnnealingLR(
-        optimizer, T_max=phase_epochs, eta_min=args.lr * 0.01
+        optimizer,
+        T_max=phase_epochs,
+        eta_min=args.lr * 0.01
     )
     logger.info(
         f"LR Scheduler: CosineAnnealingLR (T_max={phase_epochs}, "
@@ -326,30 +445,143 @@ def main():
 
     # --- Train and collect full metrics history ---
     start_epoch = 0
-    metrics_history = {"avg_train_loss": [], "val_loss": [], "val_accuracy": [], "learning_rate": []}
+    metrics_history = {
+        "avg_train_loss": [],
+        "val_loss": [],
+        "val_accuracy": [],
+        "learning_rate": []
+    }
     run_save_path = Path(args.model_save_dir) / (run.name if run else run_name)
-    if args.resume:
-         model, optimizer, lr_scheduler, start_epoch, metrics_history = load_checkpoint_pt(
-              model, optimizer, lr_scheduler, run_save_path, device
-         )
+    model_config = config.get('model', {})
+    dataset_config = config.get('dataset', {})
+    tokenizer_cfg = config.get('tokenizer', {})
+    
+    # --- Determine Checkpoint Load Path if Resuming ---
+    checkpoint_load_path = None
+    if args.resume_dir:
+        checkpoint_load_path = Path(args.resume_dir)
+        logger.info(f"Resume directory explicitly set: {checkpoint_load_path}")
+    elif args.resume:
+        checkpoint_load_path = run_save_path
+        logger.info(f"Resume flag set. Attempting to load checkpoint from: {checkpoint_load_path}")
+        if not checkpoint_load_path.exists():
+            logger.warning(f"Checkpoint directory not found at {checkpoint_load_path}. Cannot resume.")
+            checkpoint_load_path = None
+
+    if args.resume and checkpoint_load_path:
+        (
+            model_state_dict,
+            optimizer_state_dict,
+            scheduler_state_dict,
+            start_epoch,
+            metrics_history,
+            loaded_model_cfg,
+            loaded_dataset_cfg,
+            loaded_phase
+        ) = load_checkpoint_pt(checkpoint_load_path, device)
+        # Use loaded configs if available
+        if loaded_model_cfg is not None:
+            model_config = loaded_model_cfg
+        if loaded_dataset_cfg is not None:
+            dataset_config = loaded_dataset_cfg
+        if loaded_phase is not None:
+            args.phase = loaded_phase
+        # Re-instantiate model with loaded config
+        if args.phase == 1 or args.phase == 2:
+            img_size = dataset_config.get(
+                f'image_size_phase{args.phase}',
+                dataset_config['image_size']
+            )
+            patch_size = dataset_config.get('patch_size')
+            num_outputs = dataset_config.get(
+                f'num_outputs_phase{args.phase}', 1
+            )
+            num_classes = dataset_config.get('num_classes')
+            model = VisionTransformer(
+                img_size=img_size,
+                patch_size=patch_size,
+                in_channels=dataset_config['in_channels'],
+                num_classes=num_classes,
+                embed_dim=model_config['embed_dim'],
+                depth=model_config['depth'],
+                num_heads=model_config['num_heads'],
+                mlp_ratio=model_config['mlp_ratio'],
+                dropout=model_config.get('dropout', 0.1),
+                num_outputs=num_outputs
+            )
+        elif args.phase == 3:
+            img_size = dataset_config.get('image_size_phase3')
+            patch_size = dataset_config.get('patch_size_phase3')
+            decoder_vocab_size = tokenizer_cfg.get('vocab_size')
+            model = EncoderDecoderViT(
+                img_size=img_size,
+                patch_size=patch_size,
+                in_channels=dataset_config['in_channels'],
+                encoder_embed_dim=model_config['embed_dim'],
+                encoder_depth=model_config['depth'],
+                encoder_num_heads=model_config['num_heads'],
+                decoder_vocab_size=decoder_vocab_size,
+                decoder_embed_dim=model_config['decoder_embed_dim'],
+                decoder_depth=model_config['decoder_depth'],
+                decoder_num_heads=model_config['decoder_num_heads'],
+                mlp_ratio=model_config['mlp_ratio'],
+                dropout=model_config.get('dropout', 0.1)
+            )
+        model.to(device)
+        if model_state_dict is not None:
+            model.load_state_dict(model_state_dict)
+        # Recreate optimizer and scheduler
+        optimizer_name = config.get("training", {}).get("optimizer", "AdamW")
+        if optimizer_name.lower() == "adamw":
+            optimizer = optim.AdamW(
+                model.parameters(),
+                lr=args.lr,
+                weight_decay=args.wd
+            )
+        else:
+            optimizer = optim.Adam(
+                model.parameters(),
+                lr=args.lr,
+                weight_decay=args.wd
+            )
+        if optimizer_state_dict is not None:
+            optimizer.load_state_dict(optimizer_state_dict)
+            for state_val in optimizer.state.values():
+                for k, v in state_val.items():
+                    if isinstance(v, torch.Tensor):
+                        state_val[k] = v.to(device)
+        phase_epochs = config.get("training", {}).get(
+            f"phase{args.phase}", {}
+        ).get("epochs", args.epochs)
+        lr_scheduler = CosineAnnealingLR(
+            optimizer,
+            T_max=phase_epochs,
+            eta_min=args.lr * 0.01
+        )
+        if scheduler_state_dict is not None:
+            lr_scheduler.load_state_dict(scheduler_state_dict)
     epochs_to_run = args.epochs - start_epoch
     if epochs_to_run <= 0:
         logger.info("Training already completed based on checkpoint.")
     else:
-        logger.info(f"Training from epoch {start_epoch} for {epochs_to_run} more epochs.")
+        logger.info(f"Training from epoch {start_epoch} for "
+                    f"{epochs_to_run} more epochs.")
         metrics_history_update = train_model(
             model=model,
             train_dataloader=train_dataloader,
             val_dataloader=val_dataloader,
             optimizer=optimizer,
             device=device,
-            epochs=epochs_to_run,
+            epochs=args.epochs,
+            start_epoch=start_epoch,
+            initial_metrics_history=metrics_history,
             model_save_dir=args.model_save_dir,
             config=config,
             phase=args.phase,
             run_name=run.name if run else run_name,
             wandb_run=run,
-            lr_scheduler=lr_scheduler
+            lr_scheduler=lr_scheduler,
+            resume_from_checkpoint=False
         )
         metrics_history = metrics_history_update
 
