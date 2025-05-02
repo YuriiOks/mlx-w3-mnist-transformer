@@ -41,22 +41,27 @@ def prediction_controls(
         st.info("Please provide an input image using the controls on the left.")
         return
 
-    # --- Placeholder Inference Logic ---
+    import numpy as np
+    from app.utils_streamlit import plot_probabilities
     with st.spinner("Running model inference..."):
-        # TODO: Replace with actual MLX/PyTorch inference
-        # Example: pred = model(input_img)
-        # For now, use dummy output
-        import numpy as np
         if phase_loaded == 1:
+            # Dummy: single digit prediction
             pred_digit = np.random.randint(0, 10)
             probs = np.random.dirichlet(np.ones(10), size=1)[0]
             st.success(f"Predicted Digit: {pred_digit}")
-            from app.utils_streamlit import plot_probabilities
             plot_probabilities(probs, phase_loaded, result_area)
         elif phase_loaded == 2:
-            st.info("Phase 2 prediction logic not implemented yet.")
+            # Dummy: 4 digits (2x2 grid)
+            pred_digits = np.random.randint(0, 10, size=4)
+            probs = np.random.dirichlet(np.ones(10), size=4) # 4x10
+            st.success(f"Predicted Digits (TL, TR, BL, BR): {pred_digits.tolist()}")
+            plot_probabilities(probs, phase_loaded, result_area)
         elif phase_loaded == 3:
-            st.info("Phase 3 prediction logic not implemented yet.")
+            # Dummy: sequence prediction (up to 7 digits)
+            seq_len = np.random.randint(1, 8)
+            pred_seq = np.random.randint(0, 10, size=seq_len)
+            st.success(f"Predicted Sequence: {pred_seq.tolist()}")
+            st.info("(Sequence prediction visualization not implemented)")
         else:
-            st.warning("Unknown phase loaded.")
+            st.warning("Phase not supported for prediction or probability plotting.")
     return
