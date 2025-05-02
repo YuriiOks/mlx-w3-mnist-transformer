@@ -28,6 +28,35 @@ def prediction_controls(
         the Streamlit app.
     """
     st.header("2. Chef's Analysis (Prediction) 🧠")
-    # Placeholder for prediction logic; use session_state and input_state
-    # Example: st.write('Prediction results will appear here.')
+    result_area = st.empty()
+    model = session_state.model
+    phase_loaded = session_state.phase_loaded
+    input_img = input_state.get('processed_image')
+    display_img = input_state.get('display_image')
+
+    if model is None:
+        st.info("No model loaded. Please load a model from the sidebar.")
+        return
+    if input_img is None:
+        st.info("Please provide an input image using the controls on the left.")
+        return
+
+    # --- Placeholder Inference Logic ---
+    with st.spinner("Running model inference..."):
+        # TODO: Replace with actual MLX/PyTorch inference
+        # Example: pred = model(input_img)
+        # For now, use dummy output
+        import numpy as np
+        if phase_loaded == 1:
+            pred_digit = np.random.randint(0, 10)
+            probs = np.random.dirichlet(np.ones(10), size=1)[0]
+            st.success(f"Predicted Digit: {pred_digit}")
+            from app.utils_streamlit import plot_probabilities
+            plot_probabilities(probs, phase_loaded, result_area)
+        elif phase_loaded == 2:
+            st.info("Phase 2 prediction logic not implemented yet.")
+        elif phase_loaded == 3:
+            st.info("Phase 3 prediction logic not implemented yet.")
+        else:
+            st.warning("Unknown phase loaded.")
     return
