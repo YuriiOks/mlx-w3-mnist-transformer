@@ -33,6 +33,8 @@ def plot_probabilities(
 
     with result_area:
         if phase == 1:
+            if probs is None or len(probs) == 0:
+                return  # Do not plot empty sets for phase 1
             labels = [str(i) for i in range(10)]
             fig, ax = plt.subplots(figsize=(6, 2))
             bars = ax.bar(labels, probs.flatten(), color='skyblue')
