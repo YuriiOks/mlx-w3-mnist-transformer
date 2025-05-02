@@ -88,10 +88,6 @@ def input_controls(
         'display_image': None
     }
 
-    if phase_loaded == 0:
-        st.info("Load a model using the sidebar first.")
-        return input_state
-
     dataset_cfg = config.get('dataset', {})
     processed_image_np = None
     display_image_pil = None
@@ -109,17 +105,12 @@ def input_controls(
 
     # --- Input Method Selection ---
     input_options = ["Draw Digit", "Upload Image"]
-    if (
-        phase_loaded == 3 and TORCHVISION_AVAILABLE and GENERATOR_AVAILABLE
-        and TOKENIZER_AVAILABLE
-    ):
+    if TORCHVISION_AVAILABLE and GENERATOR_AVAILABLE and TOKENIZER_AVAILABLE:
         input_options.append("Generate Sample")
 
     input_method = st.radio(
-        f"Input method for Phase {phase_loaded} "
-        f"(Target Size: {input_size}x{input_size}):",
-        input_options,
-        key=f"input_{phase_loaded}_{framework}",
+        f"Input method for Phase {phase_loaded} (Target Size: {input_size}x{input_size}):",
+        input_options, key=f"input_{phase_loaded}_{framework}", # Key includes framework
         horizontal=True
     )
 
@@ -170,8 +161,8 @@ def input_controls(
                 framework
             )
 
-    elif input_method == "Generate Sample" and phase_loaded == 3:
-        st.write("Generate a random dynamic layout image (64x64):")
+    elif input_method == "Generate Sample":
+        st.write(f"Generate a random sample for Phase {phase_loaded} ({input_size}x{input_size}):")
         if st.button("Generate", key=f"generate_{phase_loaded}"):
             data_dir = config['paths'].get('data_dir', DEFAULT_DATA_DIR)
             base_pil, base_lbl = None, None
@@ -190,29 +181,24 @@ def input_controls(
             if base_pil and base_lbl is not None:
                 cfg_ds = config.get('dataset', {})
                 cfg_tk = config.get('tokenizer', {})
+                # Use the generator for all phases, but adjust parameters
                 canvas_np, target_seq_np = generate_dynamic_digit_image_seq_np(
                     base_pil,
                     base_lbl,
                     canvas_size=input_size,
-                    max_digits=cfg_ds.get('max_digits_phase3', 7),
+                    max_digits=cfg_ds.get('max_digits_phase3', 7) if phase_loaded == 3 else 1,
                     augment_digits=True,
                     max_seq_len=cfg_ds.get('max_seq_len', 10),
-                    start_token_id=cfg_tk.get(
-                        'start_token_id', START_TOKEN_ID
-                    ),
-                    end_token_id=cfg_tk.get(
-                        'end_token_id', END_TOKEN_ID
-                    ),
-                    pad_token_id=cfg_tk.get(
-                        'pad_token_id', PAD_TOKEN_ID
-                    ),
+                    start_token_id=cfg_tk.get('start_token_id', START_TOKEN_ID),
+                    end_token_id=cfg_tk.get('end_token_id', END_TOKEN_ID),
+                    pad_token_id=cfg_tk.get('pad_token_id', PAD_TOKEN_ID),
                 )
                 if canvas_np is not None:
                     display_image_pil = Image.fromarray(
                         canvas_np.squeeze().astype(np.uint8)
                     )
                     processed_image_np = numpy_normalize(canvas_np)
-                    if TOKENIZER_AVAILABLE:
+                    if TOKENIZER_AVAILABLE and target_seq_np is not None:
                         decoded_labels = sequence_to_labels(
                             target_seq_np.tolist()
                         )
@@ -223,14 +209,14 @@ def input_controls(
                             target_seq_np.tolist()
                         )
                 else:
-                    st.error("Failed to generate Phase 3 sample.")
+                    st.error("Failed to generate sample.")
 
     # Display the input image (before normalization)
     if display_image_pil:
         st.image(
             display_image_pil,
             caption='Input Image (Before Preprocessing)',
-            use_column_width=True
+            use_container_width=True
         )
 
     input_state['processed_image'] = processed_image_np
