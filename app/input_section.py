@@ -7,7 +7,7 @@
 
 import streamlit as st
 
-def input_controls(config, sidebar_state):
+def input_controls(config, session_state):
     """Handles input image drawing/upload/generation logic."""
     st.header("1. Prepare Your Ingredient (Image) 🖼️")
     # Placeholder for input logic; return a dict with input state
