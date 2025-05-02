@@ -9,7 +9,10 @@ import streamlit as st
 import sys
 from pathlib import Path
 
-st.set_page_config(page_title="MNIST ViT Kitchen", layout="wide")
+st.set_page_config(
+    page_title="MNIST ViT Kitchen",
+    layout="wide"
+)
 
 # --- Add project root to sys.path ---
 try:
@@ -17,7 +20,8 @@ try:
     project_root = current_dir.parent
     if str(project_root) not in sys.path:
         print(
-            f"🎨 [App] Adding project root to sys.path: {project_root}"
+            f"🎨 [App] Adding project root to sys.path: "
+            f"{project_root}"
         )
         sys.path.insert(0, str(project_root))
     # --- Now imports should work ---
@@ -48,18 +52,22 @@ def handle_model_loading(
     Handles loading of the selected model when the user clicks the button.
 
     Args:
-        selected_framework (str): The ML framework selected by the user.
+        selected_framework (str): The ML framework selected by the user,
+            e.g., "🤖 PyTorch" or "🦙 MLX".
         config (dict): The loaded configuration dictionary.
         model_base_dir (str): Base directory where models are stored.
         selected_run_name (str): The selected model run name.
         load_model_clicked (bool): Whether the load button was clicked.
 
     Returns:
-        None. Updates Streamlit session state directly.
+        None. Updates Streamlit session state directly with the loaded
+        model, phase, and run name. Displays sidebar messages for
+        success or failure.
     """
     if load_model_clicked:
         if selected_run_name:
-            ext = ".pth" if selected_framework == "🤖 PyTorch" else ".safetensors"
+            ext = ".pth" if selected_framework == "🤖 PyTorch" \
+                else ".safetensors"
             fname = (
                 "model_final"
                 if selected_framework == "🤖 PyTorch"
@@ -128,7 +136,9 @@ if 'model_run_name_loaded' not in st.session_state:
 # --- End Session State ---
 
 # Render Sidebar and get selections
-sidebar_state = sidebar_controls(config)
+sidebar_state = sidebar_controls(
+    config
+)
 selected_framework = sidebar_state['framework']
 selected_phase = sidebar_state['phase']
 selected_run_name = sidebar_state['model_run_name']
@@ -143,6 +153,9 @@ handle_model_loading(
     selected_run_name=selected_run_name,
     load_model_clicked=load_model_clicked
 )
+# --- After loading, set phase_loaded to sidebar selection ---
+if load_model_clicked and st.session_state.model is not None:
+    st.session_state.phase_loaded = selected_phase
 # --- End Handle Model Loading ---
 
 if st.session_state.model is not None:
