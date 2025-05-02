@@ -107,7 +107,7 @@ def sidebar_controls(
     ).get(
         'model_save_dir', 'models/mnist_vit'
     )
-    prefix = "PT_" if selected_framework == "🤖 PyTorch" else "MLX_"
+    prefix = "PyTorch_" if selected_framework == "🤖 PyTorch" else "MLX_"
     phase_prefix = f"{prefix}Phase{selected_phase}_"
     available_runs = []
     run_display_options = {}
