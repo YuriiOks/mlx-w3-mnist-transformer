@@ -79,6 +79,8 @@ def handle_model_loading(
                 / f"{fname}{ext}"
             )
             model_path_str = str(model_path)
+            st.sidebar.info(f"DEBUG: Checking model path: {model_path_str}")
+            st.sidebar.info(f"DEBUG: Exists? {model_path.exists()}")
             if model_path and model_path.exists():
                 with st.spinner(
                     f"Loading {selected_framework} model: "
@@ -177,11 +179,19 @@ with col_input:
     )
 
 with col_output:
-    prediction_controls(
-        config,
-        st.session_state,
-        input_state
-    )
+    result_area = st.empty()
+    prediction_result = st.empty()
+    if input_state.get('predict_clicked', False):
+        prediction_controls(
+            config,
+            st.session_state,
+            input_state
+        )
+    else:
+        with result_area:
+            st.write("")  # Placeholder for graph
+        with prediction_result:
+            st.info("Prediction result will appear here after you click 'Predict'.")
 
 # Add footer or other elements if desired
 st.markdown("---")
