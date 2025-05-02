@@ -12,25 +12,28 @@ from pathlib import Path
 
 def parse_run_name(run_name):
     """Extracts Phase, Epochs, LR, Batch Size from standard run names."""
-    details = {'phase': '?', 'epochs': '?', 'lr': '?', 'batch': '?'}
-    match = re.match(r"(PT|MLX)_Phase(\d+)_E(\d+)_LR([\d.eE+-]+)_B(\d+)_.*", run_name)
+    match = re.match(r"(PT|MLX)_Phase(\d+)_E(\d+)_LR([\d.eE+-]+)_B(\d+).*", run_name)
     if match:
-        details['phase'] = match.group(2)
-        details['epochs'] = match.group(3)
-        details['lr'] = match.group(4)
-        details['batch'] = match.group(5)
-    return details
+        return {
+            'framework': match.group(1),
+            'phase': match.group(2),
+            'epochs': match.group(3),
+            'lr': match.group(4),
+            'batch': match.group(5),
+            'full_name': run_name
+        }
+    return {'full_name': run_name}
 
 def sidebar_controls(config):
     """Handles sidebar controls: framework, phase, model selection, load button."""
     st.sidebar.header("✨ Chef's Station ✨")
     st.sidebar.markdown("---")
     # 1. Framework Selection
-    st.sidebar.subheader("1. Select Framework")
+    st.sidebar.subheader("1. Select Framework 🤖/🍎")
     framework_options = []
-    try: import torch; framework_options.append("PyTorch")
+    try: import torch; framework_options.append("🤖 PyTorch")
     except ImportError: pass
-    try: import mlx.core; framework_options.append("MLX")
+    try: import mlx.core; framework_options.append("🍎 MLX")
     except ImportError: pass
     if not framework_options: st.sidebar.error("No ML framework found!"); st.stop()
     selected_framework = st.sidebar.selectbox(
@@ -40,8 +43,12 @@ def sidebar_controls(config):
     )
     st.sidebar.markdown("---")
     # 2. Phase Selection
-    st.sidebar.subheader("2. Select Cooking Phase")
-    phase_options = {1: "Phase 1: Single Digit", 2: "Phase 2: 2x2 Grid", 3: "Phase 3: Sequence"}
+    st.sidebar.subheader("2. Select Cooking Phase 🍲")
+    phase_options = {
+        1: "🧁 Phase 1: Single Digit",
+        2: "🍽️ Phase 2: 2x2 Grid",
+        3: "🍜 Phase 3: Sequence"
+    }
     selected_phase = st.sidebar.selectbox(
         "Choose Phase:",
         options=list(phase_options.keys()),
@@ -50,7 +57,7 @@ def sidebar_controls(config):
     )
     st.sidebar.markdown("---")
     # 3. Run Selection (with parsed details)
-    st.sidebar.subheader("3. Select Trained Model")
+    st.sidebar.subheader("3. Select Trained Model 💾")
     model_base_dir = config.get('paths', {}).get('model_save_dir', 'models/mnist_vit')
     prefix = "PT_" if selected_framework == "PyTorch" else "MLX_"
     phase_prefix = f"{prefix}Phase{selected_phase}_"
@@ -64,11 +71,18 @@ def sidebar_controls(config):
             ], reverse=True)
             for run_name in all_dirs:
                  details = parse_run_name(run_name)
-                 display_name = (f"E{details['epochs']} | "
-                                 f"LR {details['lr']} | "
-                                 f"B{details['batch']} "
-                                 f"(Run: ...{run_name[-15:]})")
-                 run_display_options[display_name] = run_name
+                 parts = []
+                 if 'epochs' in details: parts.append(f"E{details['epochs']}")
+                 if 'lr' in details: parts.append(f"LR {details['lr']}")
+                 if 'batch' in details: parts.append(f"B{details['batch']}")
+                 suffix = f"...{run_name[-8:]}" if len(run_name) > 25 else run_name
+                 parts.append(f"({suffix})")
+                 display_name = " | ".join(parts)
+                 if display_name not in run_display_options:
+                      run_display_options[display_name] = run_name
+                 else:
+                      display_name += f"_{run_name[-12:]}"
+                      run_display_options[display_name] = run_name
             available_runs = list(run_display_options.keys())
     except Exception as e:
         available_runs = []
@@ -78,14 +92,14 @@ def sidebar_controls(config):
         st.sidebar.info(f"No trained {selected_framework} Phase {selected_phase} models found.")
     else:
         selected_display_name = st.sidebar.selectbox(
-            f"Select {selected_framework} Phase {selected_phase} Run:",
+            f"Select {selected_framework[1:]} Phase {selected_phase} Run:",
             options=available_runs
         )
         if selected_display_name:
             model_run_name = run_display_options[selected_display_name]
     st.sidebar.markdown("---")
     # 4. Load Model Button
-    st.sidebar.subheader("4. Load Model")
+    st.sidebar.subheader("4. Load Model ▶️")
     load_model_clicked = st.sidebar.button("Load Selected Model", key="load_button", disabled=(model_run_name is None))
     return {
         'framework': selected_framework,
