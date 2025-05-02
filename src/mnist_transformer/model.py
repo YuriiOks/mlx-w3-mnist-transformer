@@ -62,7 +62,7 @@ class VisionTransformer(nn.Module):
         depth: int,
         num_heads: int,
         mlp_ratio: float,
-        dropout: float = 0.1,
+        dropout: float = 0.1, # Single dropout arg
         num_outputs: int = 1,
     ):
         super().__init__()
@@ -81,7 +81,7 @@ class VisionTransformer(nn.Module):
                 embed_dim,
                 num_heads,
                 mlp_ratio,
-                dropout
+                dropout # <-- Pass the single dropout value
             )
             for _ in range(depth)
         ])
@@ -172,7 +172,6 @@ class EncoderDecoderViT(nn.Module):
         decoder_num_heads (int): Decoder attention heads.
         mlp_ratio (float): MLP hidden dim ratio.
         dropout (float): Dropout probability.
-        attention_dropout (float): Attention dropout probability.
     """
     def __init__(
         self,
@@ -187,8 +186,7 @@ class EncoderDecoderViT(nn.Module):
         decoder_depth: int,
         decoder_num_heads: int,
         mlp_ratio: float = 2.0,
-        dropout: float = 0.1,
-        attention_dropout: float = 0.1,
+        dropout: float = 0.1, # Use single dropout here too
     ):
         super().__init__()
         self.decoder_vocab_size = decoder_vocab_size
@@ -205,7 +203,6 @@ class EncoderDecoderViT(nn.Module):
                 encoder_embed_dim,
                 encoder_num_heads,
                 mlp_ratio,
-                attention_dropout,
                 dropout
             )
             for _ in range(encoder_depth)
