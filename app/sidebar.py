@@ -12,7 +12,7 @@ from pathlib import Path
 
 def parse_run_name(run_name):
     """Extracts Phase, Epochs, LR, Batch Size from standard run names."""
-    match = re.match(r"(PT|MLX)_Phase(\d+)_E(\d+)_LR([\d.eE+-]+)_B(\d+).*", run_name)
+    match = re.match(r"(PyTorch|MLX)_Phase(\d+)_E(\d+)_LR([\d.eE+-]+)_B(\d+).*", run_name)
     if match:
         return {
             'framework': match.group(1),
@@ -71,17 +71,17 @@ def sidebar_controls(config):
             ], reverse=True)
             for run_name in all_dirs:
                  details = parse_run_name(run_name)
+                 # Build a more descriptive display string
                  parts = []
-                 if 'epochs' in details: parts.append(f"E{details['epochs']}")
-                 if 'lr' in details: parts.append(f"LR {details['lr']}")
-                 if 'batch' in details: parts.append(f"B{details['batch']}")
-                 suffix = f"...{run_name[-8:]}" if len(run_name) > 25 else run_name
-                 parts.append(f"({suffix})")
+                 parts.append("📝")
+                 if 'epochs' in details: parts.append(f"Epochs = {details['epochs']}")
+                 if 'lr' in details: parts.append(f"Learning Rate = {details['lr']}")
+                 if 'batch' in details: parts.append(f"Batch Size = {details['batch']}")
                  display_name = " | ".join(parts)
                  if display_name not in run_display_options:
                       run_display_options[display_name] = run_name
                  else:
-                      display_name += f"_{run_name[-12:]}"
+                      display_name += f" [{run_name[-6:]}]"
                       run_display_options[display_name] = run_name
             available_runs = list(run_display_options.keys())
     except Exception as e:
