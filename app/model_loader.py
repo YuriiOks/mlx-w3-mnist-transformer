@@ -10,6 +10,7 @@ import torch
 from pathlib import Path
 from src.mnist_transformer.model import VisionTransformer, EncoderDecoderViT
 import pickle
+import streamlit as st
 
 def load_selected_model(
     framework: str,
@@ -45,53 +46,63 @@ def load_selected_model(
             return (None, 0)
         # Load state dict and config
         device = torch.device("cpu")
-        model_state_dict = torch.load(model_path_obj, map_location=device)
-        with open(state_path, 'rb') as f:
-            state = pickle.load(f)
-        model_cfg = state.get('model_config', config.get('model', {}))
-        dataset_cfg = state.get('dataset_config', config.get('dataset', {}))
-        phase = state.get('phase', config.get('phase', 1))
-        # Instantiate model
-        if phase == 1 or phase == 2:
-            img_size = dataset_cfg.get(f'image_size_phase{phase}', dataset_cfg.get('image_size', 28))
-            patch_size = dataset_cfg.get('patch_size', 7)
-            num_outputs = dataset_cfg.get(f'num_outputs_phase{phase}', 1)
-            num_classes = dataset_cfg.get('num_classes', 10)
-            model = VisionTransformer(
-                img_size=img_size,
-                patch_size=patch_size,
-                in_channels=dataset_cfg.get('in_channels', 1),
-                num_classes=num_classes,
-                embed_dim=model_cfg.get('embed_dim', 64),
-                depth=model_cfg.get('depth', 4),
-                num_heads=model_cfg.get('num_heads', 4),
-                mlp_ratio=model_cfg.get('mlp_ratio', 2.0),
-                dropout=model_cfg.get('dropout', 0.1),
-                num_outputs=num_outputs
-            )
-        elif phase == 3:
-            img_size = dataset_cfg.get('image_size_phase3', 64)
-            patch_size = dataset_cfg.get('patch_size_phase3', 8)
-            decoder_vocab_size = config.get('tokenizer', {}).get('vocab_size', 13)
-            model = EncoderDecoderViT(
-                img_size=img_size,
-                patch_size=patch_size,
-                in_channels=dataset_cfg.get('in_channels', 1),
-                encoder_embed_dim=model_cfg.get('embed_dim', 64),
-                encoder_depth=model_cfg.get('depth', 4),
-                encoder_num_heads=model_cfg.get('num_heads', 4),
-                decoder_vocab_size=decoder_vocab_size,
-                decoder_embed_dim=model_cfg.get('decoder_embed_dim', 64),
-                decoder_depth=model_cfg.get('decoder_depth', 4),
-                decoder_num_heads=model_cfg.get('decoder_num_heads', 4),
-                mlp_ratio=model_cfg.get('mlp_ratio', 2.0),
-                dropout=model_cfg.get('dropout', 0.1)
-            )
-        else:
+        try:
+            model_state_dict = torch.load(model_path_obj, map_location=device)
+            with open(state_path, 'rb') as f:
+                state = pickle.load(f)
+            model_cfg = state.get('model_config', config.get('model', {}))
+            dataset_cfg = state.get('dataset_config', config.get('dataset', {}))
+            phase = state.get('phase', config.get('phase', 1))
+            # Instantiate model
+            if phase == 1 or phase == 2:
+                img_size = dataset_cfg.get(f'image_size_phase{phase}', dataset_cfg.get('image_size', 28))
+                patch_size = dataset_cfg.get('patch_size', 7)
+                num_outputs = dataset_cfg.get(f'num_outputs_phase{phase}', 1)
+                num_classes = dataset_cfg.get('num_classes', 10)
+                model = VisionTransformer(
+                    img_size=img_size,
+                    patch_size=patch_size,
+                    in_channels=dataset_cfg.get('in_channels', 1),
+                    num_classes=num_classes,
+                    embed_dim=model_cfg.get('embed_dim', 64),
+                    depth=model_cfg.get('depth', 4),
+                    num_heads=model_cfg.get('num_heads', 4),
+                    mlp_ratio=model_cfg.get('mlp_ratio', 2.0),
+                    dropout=model_cfg.get('dropout', 0.1),
+                    num_outputs=num_outputs
+                )
+            elif phase == 3:
+                img_size = dataset_cfg.get('image_size_phase3', 64)
+                patch_size = dataset_cfg.get('patch_size_phase3', 8)
+                decoder_vocab_size = config.get('tokenizer', {}).get('vocab_size', 13)
+                model = EncoderDecoderViT(
+                    img_size=img_size,
+                    patch_size=patch_size,
+                    in_channels=dataset_cfg.get('in_channels', 1),
+                    encoder_embed_dim=model_cfg.get('embed_dim', 64),
+                    encoder_depth=model_cfg.get('depth', 4),
+                    encoder_num_heads=model_cfg.get('num_heads', 4),
+                    decoder_vocab_size=decoder_vocab_size,
+                    decoder_embed_dim=model_cfg.get('decoder_embed_dim', 64),
+                    decoder_depth=model_cfg.get('decoder_depth', 4),
+                    decoder_num_heads=model_cfg.get('decoder_num_heads', 4),
+                    mlp_ratio=model_cfg.get('mlp_ratio', 2.0),
+                    dropout=model_cfg.get('dropout', 0.1)
+                )
+            else:
+                return (None, 0)
+            model.load_state_dict(model_state_dict)
+            model.eval()
+            return (model, phase)
+        except Exception as e:
+            import traceback
+            st.sidebar.error(f"Model loading exception: {e}")
+            st.sidebar.error(traceback.format_exc())
+            import logging
+            logging.basicConfig(level=logging.DEBUG)
+            logging.error(f"Model loading exception: {e}")
+            logging.error(traceback.format_exc())
             return (None, 0)
-        model.load_state_dict(model_state_dict)
-        model.eval()
-        return (model, phase)
     # ...existing code for MLX or fallback...
     return (
         f"LoadedModel({framework}, {run_name})",
