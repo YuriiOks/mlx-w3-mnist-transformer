@@ -37,8 +37,8 @@ dataset:
   # Phase 3 (Dynamic Layout - Sequence Generation)
   image_size_phase3: 64  # Canvas size
   patch_size_phase3: 8   # Patch size for P3 encoder -> (64/8)^2 = 64 patches
-  max_digits_phase3: 7   # Max digits to generate in an image
-  max_seq_len: 10        # Max output sequence length (max_digits + start + end + buffer)
+  max_digits_phase3: 4   # Max digits to generate in an image (changed from 7 to 4)
+  max_seq_len: 7         # Max output sequence length (max_digits + start + end + buffer)
   # num_classes_phase3 is implicitly tokenizer.vocab_size for the decoder output layer
 
 # --- Vision Transformer Model Hyperparameters ---
@@ -77,11 +77,11 @@ training:
     num_val_samples: 10000   # Generate 10k synthetic val images
   # Phase 3
   phase3:
-    epochs: 100
+    epochs: 30
     batch_size: 64
     base_lr: 1e-4
     weight_decay: 0.05
-    num_train_samples: 60000 # Example: Generate more for Phase 3
+    num_train_samples: 100000 # Example: Generate more for Phase 3
     num_val_samples: 10000    # Keep validation reasonable
 
   # General settings
