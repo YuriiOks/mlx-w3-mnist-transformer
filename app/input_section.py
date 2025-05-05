@@ -202,26 +202,45 @@ def input_controls(
                     st.error(f"Failed MNIST load for generator: {e}")
 
                 if base_pil and base_lbl is not None:
-                    cfg_ds = config.get('dataset', {})
-                    cfg_tk = config.get('tokenizer', {})
-                    canvas_np, target_seq_np = generate_dynamic_digit_image_seq_np(
-                        base_pil, base_lbl, input_size,
-                        cfg_ds.get('max_digits_phase3', 7) if phase_loaded == 3 else 1,
-                        True,
-                        cfg_ds.get('max_seq_len', 10),
-                        cfg_tk.get('start_token_id', START_TOKEN_ID),
-                        cfg_tk.get('end_token_id', END_TOKEN_ID),
-                        cfg_tk.get('pad_token_id', PAD_TOKEN_ID),
-                    )
-                    if canvas_np is not None:
-                        session_state['generated_sample'] = canvas_np
-                        session_state['generated_sample_label'] = target_seq_np
-                        session_state['generated_sample_phase'] = phase_loaded
+                    if phase_loaded == 2:
+                        # Phase 2: Generate 2x2 grid image and labels
+                        from src.mnist_transformer_mlx.dataset_mlx import generate_2x2_grid_image_np
+                        grid_img, grid_labels = generate_2x2_grid_image_np(
+                            np.stack([np.array(img, dtype=np.uint8).reshape(28, 28, 1) for img in base_pil]),
+                            base_lbl,
+                            output_size=input_size
+                        )
+                        if grid_img is not None:
+                            session_state['generated_sample'] = grid_img
+                            session_state['generated_sample_label'] = grid_labels
+                            session_state['generated_sample_phase'] = phase_loaded
+                        else:
+                            st.error("Failed to generate 2x2 grid sample.")
+                            session_state['generated_sample'] = None
+                            session_state['generated_sample_label'] = None
+                            session_state['generated_sample_phase'] = None
                     else:
-                        st.error("Failed to generate sample.")
-                        session_state['generated_sample'] = None
-                        session_state['generated_sample_label'] = None
-                        session_state['generated_sample_phase'] = None
+                        # Phase 1/3: Use existing logic
+                        cfg_ds = config.get('dataset', {})
+                        cfg_tk = config.get('tokenizer', {})
+                        canvas_np, target_seq_np = generate_dynamic_digit_image_seq_np(
+                            base_pil, base_lbl, input_size,
+                            cfg_ds.get('max_digits_phase3', 7) if phase_loaded == 3 else 1,
+                            True,
+                            cfg_ds.get('max_seq_len', 10),
+                            cfg_tk.get('start_token_id', START_TOKEN_ID),
+                            cfg_tk.get('end_token_id', END_TOKEN_ID),
+                            cfg_tk.get('pad_token_id', PAD_TOKEN_ID),
+                        )
+                        if canvas_np is not None:
+                            session_state['generated_sample'] = canvas_np
+                            session_state['generated_sample_label'] = target_seq_np
+                            session_state['generated_sample_phase'] = phase_loaded
+                        else:
+                            st.error("Failed to generate sample.")
+                            session_state['generated_sample'] = None
+                            session_state['generated_sample_label'] = None
+                            session_state['generated_sample_phase'] = None
             # Use the last generated sample if it exists and is for this phase
             canvas_np = session_state.get('generated_sample', None)
             target_seq_np = session_state.get('generated_sample_label', None)
@@ -235,6 +254,9 @@ def input_controls(
                         label_val = int(target_seq_np) if np.isscalar(target_seq_np) or getattr(target_seq_np, 'size', 0) == 1 else int(target_seq_np[0])
                         st.info(f"Generated Sample Ground Truth: `{label_val}`")
                         session_state.generated_target_seq = label_val
+                    elif phase_loaded == 2:
+                        st.info(f"Generated Sample Ground Truth: {target_seq_np.tolist()}")
+                        session_state.generated_target_seq = target_seq_np.tolist()
                     elif TOKENIZER_AVAILABLE:
                         decoded_labels = sequence_to_labels(target_seq_np.tolist())
                         st.info(f"Generated Sample Ground Truth: `{decoded_labels}`")
