@@ -54,7 +54,6 @@ def prediction_controls(
                 if img is not None:
                     # Ensure input is [1, 1, 28, 28] for PyTorch
                     img = np.asarray(img)
-                    st.write(f"[DEBUG] Input tensor stats before model: shape={img.shape}, min={img.min()}, max={img.max()}, mean={img.mean():.4f}")
                     if img.shape == (28, 28):
                         img = img[None, None, :, :]
                     elif img.shape == (1, 28, 28):
@@ -69,7 +68,6 @@ def prediction_controls(
                         img = img.transpose(0, 3, 1, 2)[:, :1, :, :]
                     # else: assume already correct
                     img_tensor = torch.from_numpy(img).float()
-                    st.write(f"[DEBUG] Input tensor after reshape: shape={img_tensor.shape}, min={img_tensor.min()}, max={img_tensor.max()}, mean={img_tensor.mean():.4f}")
                     with torch.no_grad():
                         logits = model(img_tensor)
                         probs = F.softmax(logits, dim=-1).cpu().numpy().flatten()
@@ -79,7 +77,19 @@ def prediction_controls(
             elif phase_loaded == 2:
                 img = input_img
                 if img is not None:
-                    img_tensor = torch.from_numpy(img).unsqueeze(0).float()
+                    img = np.asarray(img)
+
+                    # Ensure input is [1, 1, 56, 56] for PyTorch
+                    if img.shape == (56, 56):
+                        img = img[None, None, :, :]
+                    elif img.shape == (56, 56, 1):
+                        img = img.transpose(2, 0, 1)[None, :, :, :]
+                    elif img.shape == (1, 56, 56):
+                        img = img[:, None, :, :]
+                    elif img.shape == (1, 56, 56, 1):
+                        img = img.transpose(0, 3, 1, 2)
+                    # else: assume already correct
+                    img_tensor = torch.from_numpy(img).float()
                     with torch.no_grad():
                         logits = model(img_tensor)
                         # logits shape: (1, 4, 10)
